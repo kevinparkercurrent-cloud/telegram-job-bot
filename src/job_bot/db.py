@@ -61,7 +61,8 @@ CREATE TABLE IF NOT EXISTS approvals (
     draft_hash TEXT NOT NULL,
     issued_at TEXT NOT NULL,
     expires_at TEXT NOT NULL,
-    consumed_at TEXT
+    consumed_at TEXT,
+    invalidated_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS send_attempts (
@@ -342,14 +343,16 @@ class Database:
         await self._connection.commit()
         return cursor.rowcount
 
-    async def reserve_send(self, vacancy_id: str, approval_id: str) -> bool:
+    async def reserve_send(
+        self, vacancy_id: str, approval_id: str, created_at: datetime | None = None
+    ) -> bool:
         cursor = await self._connection.execute(
             """
             INSERT OR IGNORE INTO send_attempts(
                 vacancy_id, approval_id, status, created_at
             ) VALUES (?, ?, 'reserved', ?)
             """,
-            (vacancy_id, approval_id, _utc_now()),
+            (vacancy_id, approval_id, (created_at or datetime.now(timezone.utc)).isoformat()),
         )
         await self._connection.commit()
         return cursor.rowcount == 1
@@ -405,3 +408,79 @@ class Database:
             for item in await cursor.fetchall()
         }
         return rate_date, rates
+
+    async def create_approval(
+        self,
+        approval_id: str,
+        vacancy_id: str,
+        recipient: str,
+        draft_hash: str,
+        issued_at: datetime,
+        expires_at: datetime,
+    ) -> None:
+        await self._connection.execute(
+            """
+            INSERT INTO approvals(
+                id, vacancy_id, recipient, draft_hash, issued_at, expires_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                approval_id,
+                vacancy_id,
+                recipient,
+                draft_hash,
+                issued_at.isoformat(),
+                expires_at.isoformat(),
+            ),
+        )
+        await self._connection.commit()
+
+    async def get_approval(self, approval_id: str) -> dict[str, str | None] | None:
+        cursor = await self._connection.execute(
+            "SELECT * FROM approvals WHERE id = ?", (approval_id,)
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def invalidate_approvals(self, vacancy_id: str, when: datetime) -> None:
+        await self._connection.execute(
+            """
+            UPDATE approvals SET invalidated_at = ?
+            WHERE vacancy_id = ? AND consumed_at IS NULL AND invalidated_at IS NULL
+            """,
+            (when.isoformat(), vacancy_id),
+        )
+        await self._connection.commit()
+
+    async def consume_approval(self, approval_id: str, when: datetime) -> bool:
+        cursor = await self._connection.execute(
+            """
+            UPDATE approvals SET consumed_at = ?
+            WHERE id = ? AND consumed_at IS NULL AND invalidated_at IS NULL
+              AND expires_at > ?
+            """,
+            (when.isoformat(), approval_id, when.isoformat()),
+        )
+        await self._connection.commit()
+        return cursor.rowcount == 1
+
+    async def count_send_attempts_since(self, since: datetime) -> int:
+        cursor = await self._connection.execute(
+            """
+            SELECT COUNT(*) AS count FROM send_attempts
+            WHERE created_at >= ? AND status IN ('reserved', 'sent', 'unknown')
+            """,
+            (since.isoformat(),),
+        )
+        row = await cursor.fetchone()
+        return int(row["count"])
+
+    async def mark_send_unknown(self, vacancy_id: str, when: datetime) -> None:
+        await self._connection.execute(
+            """
+            UPDATE send_attempts SET status = 'unknown', completed_at = ?
+            WHERE vacancy_id = ?
+            """,
+            (when.isoformat(), vacancy_id),
+        )
+        await self._connection.commit()

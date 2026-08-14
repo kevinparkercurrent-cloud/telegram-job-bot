@@ -7,6 +7,7 @@ from telethon import TelegramClient, events
 from telethon.events.newmessage import NewMessage
 
 from job_bot.collector import ChannelPost
+from job_bot.sender import ResolvedUser
 
 
 PostHandler = Callable[[ChannelPost], Awaitable[object]]
@@ -49,3 +50,18 @@ class TelethonUserAdapter:
         if self._handler is not None:
             self._client.remove_event_handler(self._handler)
         await self._client.disconnect()
+
+    async def resolve_user(self, username: str) -> ResolvedUser:
+        entity = await self._client.get_entity(username)
+        if not hasattr(entity, "id") or not hasattr(entity, "bot"):
+            raise LookupError("Recipient is not a Telegram user")
+        resolved_username = getattr(entity, "username", None) or username
+        return ResolvedUser(
+            user_id=int(entity.id),
+            username=str(resolved_username),
+            is_bot=bool(entity.bot),
+        )
+
+    async def send_private(self, username: str, text: str) -> int:
+        message = await self._client.send_message(username, text)
+        return int(message.id)
