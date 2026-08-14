@@ -130,6 +130,24 @@ async def test_resolved_bot_recipient_is_rejected(tmp_path, vacancy) -> None:
         await db.close()
 
 
+@pytest.mark.asyncio
+async def test_failed_reservation_does_not_consume_approval(tmp_path, vacancy) -> None:
+    db = await Database.open(tmp_path / "atomic.sqlite3")
+    approvals = ApprovalService(db, FixedClock())
+    try:
+        approval = await prepare_approval(db, approvals, vacancy)
+        assert await db.reserve_send(approval.vacancy_id, "existing", NOW)
+
+        assert not await db.consume_approval_and_reserve_send(
+            approval.id, approval.vacancy_id, NOW
+        )
+        stored = await db.get_approval(approval.id)
+        assert stored is not None
+        assert stored["consumed_at"] is None
+    finally:
+        await db.close()
+
+
 @pytest.mark.parametrize("recipient", ("-100123", "https://t.me/jobs_channel", "@"))
 def test_non_private_recipient_is_rejected(recipient) -> None:
     with pytest.raises(ValueError):

@@ -97,6 +97,8 @@ class Settings(BaseSettings):
     telegram_session_path: Path = Path("data/telegram.session")
     openai_api_key: str | None = None
     openai_model: str = "gpt-5.4-mini"
+    external_source_domains: tuple[str, ...] = ()
+    candidate_profile_path: Path = Path("config/candidate-profile.full.json")
     database_path: Path = Path("data/job-bot.sqlite3")
     app_timezone: str = "Europe/Moscow"
     digest_times: tuple[str, str] = ("12:00", "19:00")

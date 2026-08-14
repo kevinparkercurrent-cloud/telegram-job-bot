@@ -106,3 +106,11 @@ class ApprovalService:
         if not await self._database.consume_approval(approval_id, self._clock.now()):
             raise ApprovalInvalid("already_consumed")
         return approved
+
+    async def consume_for_send(self, approval_id: str) -> ApprovedSend:
+        approved = await self.validate(approval_id)
+        if not await self._database.consume_approval_and_reserve_send(
+            approval_id, approved.approval.vacancy_id, self._clock.now()
+        ):
+            raise ApprovalInvalid("already_consumed")
+        return approved

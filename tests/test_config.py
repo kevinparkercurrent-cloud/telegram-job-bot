@@ -32,6 +32,19 @@ def test_settings_loads_safe_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.digest_times == ("12:00", "19:00")
 
 
+def test_external_source_domains_are_explicit_allowlist() -> None:
+    settings = Settings(
+        _env_file=None,
+        telegram_api_id=1,
+        telegram_api_hash="hash",
+        control_bot_token="token",
+        admin_telegram_id=42,
+        external_source_domains=["hh.ru", "career.habr.com"],
+    )
+
+    assert settings.external_source_domains == ("hh.ru", "career.habr.com")
+
+
 def test_candidate_profile_keeps_confirmed_search_facts(profile_path: Path) -> None:
     profile = load_candidate_profile(profile_path)
 

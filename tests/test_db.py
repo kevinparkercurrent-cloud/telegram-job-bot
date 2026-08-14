@@ -18,6 +18,19 @@ async def test_allowlist_and_fingerprint_are_idempotent(tmp_path, vacancy) -> No
 
 
 @pytest.mark.asyncio
+async def test_allowlist_is_limited_to_twenty_channels(tmp_path) -> None:
+    db = await Database.open(tmp_path / "limit.sqlite3")
+    try:
+        for index in range(20):
+            await db.add_channel(-1000 - index, f"channel-{index}")
+        with pytest.raises(ValueError, match="20"):
+            await db.add_channel(-2000, "too-many")
+        assert len(await db.list_channels()) == 20
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
 async def test_remove_channel_stops_allowing_it(tmp_path) -> None:
     db = await Database.open(tmp_path / "bot.sqlite3")
     try:

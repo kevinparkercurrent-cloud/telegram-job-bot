@@ -141,15 +141,21 @@ class Database:
                 await self._connection.commit()
 
     async def add_channel(self, channel_id: int, label: str) -> None:
-        await self._connection.execute(
-            """
-            INSERT INTO channels(channel_id, label, created_at)
-            VALUES (?, ?, ?)
-            ON CONFLICT(channel_id) DO UPDATE SET label=excluded.label
-            """,
-            (channel_id, label, _utc_now()),
-        )
-        await self._connection.commit()
+        async with self.transaction() as connection:
+            cursor = await connection.execute(
+                "SELECT COUNT(*), MAX(channel_id = ?) FROM channels", (channel_id,)
+            )
+            count, already_present = await cursor.fetchone()
+            if int(count) >= 20 and not bool(already_present):
+                raise ValueError("The channel allowlist is limited to 20 entries")
+            await connection.execute(
+                """
+                INSERT INTO channels(channel_id, label, created_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(channel_id) DO UPDATE SET label=excluded.label
+                """,
+                (channel_id, label, _utc_now()),
+            )
 
     async def remove_channel(self, channel_id: int) -> None:
         await self._connection.execute(
@@ -167,7 +173,10 @@ class Database:
         cursor = await self._connection.execute(
             "SELECT channel_id, label FROM channels ORDER BY label, channel_id"
         )
-        return [(int(row["channel_id"]), str(row["label"])) for row in await cursor.fetchall()]
+        return [
+            (int(row["channel_id"]), str(row["label"]))
+            for row in await cursor.fetchall()
+        ]
 
     async def insert_vacancy(self, vacancy: Vacancy) -> bool:
         payload = vacancy.model_dump(mode="json", exclude={"raw_text"})
@@ -395,10 +404,48 @@ class Database:
                 vacancy_id, approval_id, status, created_at
             ) VALUES (?, ?, 'reserved', ?)
             """,
-            (vacancy_id, approval_id, (created_at or datetime.now(timezone.utc)).isoformat()),
+            (
+                vacancy_id,
+                approval_id,
+                (created_at or datetime.now(timezone.utc)).isoformat(),
+            ),
         )
         await self._connection.commit()
         return cursor.rowcount == 1
+
+    async def consume_approval_and_reserve_send(
+        self,
+        approval_id: str,
+        vacancy_id: str,
+        when: datetime,
+    ) -> bool:
+        """Atomically consume an approval and create the durable send reservation."""
+        async with self.transaction() as connection:
+            reservation = await connection.execute(
+                """
+                INSERT OR IGNORE INTO send_attempts(
+                    vacancy_id, approval_id, status, created_at
+                ) VALUES (?, ?, 'reserved', ?)
+                """,
+                (vacancy_id, approval_id, when.isoformat()),
+            )
+            if reservation.rowcount != 1:
+                return False
+            consumed = await connection.execute(
+                """
+                UPDATE approvals SET consumed_at = ?
+                WHERE id = ? AND vacancy_id = ? AND consumed_at IS NULL
+                  AND invalidated_at IS NULL AND expires_at > ?
+                """,
+                (when.isoformat(), approval_id, vacancy_id, when.isoformat()),
+            )
+            if consumed.rowcount != 1:
+                await connection.execute(
+                    "DELETE FROM send_attempts WHERE vacancy_id = ? AND approval_id = ?",
+                    (vacancy_id, approval_id),
+                )
+                return False
+            return True
 
     async def finish_send(self, vacancy_id: str, telegram_message_id: int) -> None:
         now = _utc_now()
@@ -428,7 +475,10 @@ class Database:
                 INSERT INTO exchange_rates(rate_date, currency, rub_per_unit)
                 VALUES (?, ?, ?)
                 """,
-                [(rate_date, currency, str(value)) for currency, value in rates.items()],
+                [
+                    (rate_date, currency, str(value))
+                    for currency, value in rates.items()
+                ],
             )
 
     async def latest_exchange_rates(self) -> tuple[str, dict[str, Decimal]] | None:

@@ -87,13 +87,9 @@ class SafeSender:
             return SendResult(status="invalid_recipient")
 
         try:
-            approved = await self._approvals.consume(approval_id)
+            approved = await self._approvals.consume_for_send(approval_id)
         except ApprovalInvalid as error:
             return SendResult(status=error.code)
-        if not await self._database.reserve_send(
-            approved.approval.vacancy_id, approval_id, now
-        ):
-            return SendResult(status="already_consumed")
 
         try:
             message_id = await self._telegram.send_private(
