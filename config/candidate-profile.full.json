@@ -1,0 +1,962 @@
+{
+  "profile_meta": {
+    "schema_version": "1.0",
+    "updated_at": "2026-08-14",
+    "language": "ru",
+    "purpose": "canonical_candidate_profile_for_job_bot",
+    "source_of_truth": true,
+    "source_file": "Профиль кандидата — рабочая база.md",
+    "usage_note": "Полная внутренняя база. Для конкретной вакансии использовать только релевантные подтверждённые факты."
+  },
+  "identity": {
+    "full_name_ru": "Даниил Ермолаев",
+    "full_name_en": "Daniil Ermolaev",
+    "location": {
+      "city": "Санкт-Петербург",
+      "country": "Россия",
+      "timezone": "Europe/Moscow"
+    },
+    "phone": null,
+    "email": null,
+    "linkedin": "https://www.linkedin.com/in/daniil-ermolaev-62700021b/"
+  },
+  "job_search": {
+    "status": "active",
+    "primary_titles": [
+      "Technical Project Manager",
+      "Project Manager",
+      "Product Project Manager",
+      "IT Project Manager"
+    ],
+    "primary_direction": "Удалённая работа в легальной продуктовой IT-компании",
+    "primary_domains": [
+      "Mobile Products",
+      "Web Products",
+      "AI Products",
+      "Subscription Products",
+      "Product IT"
+    ],
+    "parallel_domains": [
+      "iGaming",
+      "Betting",
+      "Affiliate Marketing",
+      "Arbitrage",
+      "Performance Marketing",
+      "AdTech"
+    ],
+    "work_format_priority": [
+      "remote",
+      "hybrid_in_saint_petersburg",
+      "office_in_saint_petersburg"
+    ],
+    "remote_from_vietnam_required_or_preferred": true,
+    "relocation_regions": [
+      "Вьетнам",
+      "Юго-Восточная Азия"
+    ],
+    "minimum_income": {
+      "amount": 1500,
+      "currency": "USD",
+      "period": "month",
+      "gross_or_net": null
+    },
+    "desired_income_rub": null
+  },
+  "professional_summary": {
+    "headline_ru": "Technical Project Manager | Mobile & Web Products | iOS, Android | AI, Subscriptions, iGaming",
+    "summary_ru": "Технически самостоятельный Project Manager с 4+ годами опыта запуска мобильных и веб-продуктов в подписочной модели, iGaming и performance marketing. Переводит бизнес-задачи в понятные требования, координирует кросс-функциональные команды, управляет сроками, бюджетами, рисками, тестированием, публикацией и релизами. В AppsLabs координировал более 150 запусков мобильных и веб-продуктов, обычно вёл около 10 мобильных проектов параллельно с циклами 10–14 дней. Имеет практический опыт App Store и Google Play, аналитических интеграций, ASO, Linux и веб-инфраструктуры. Не позиционируется как senior-разработчик.",
+    "core_value": [
+      "Быстро включается в новые проекты и динамичные рынки",
+      "Соединяет бизнес-требования, разработку, дизайн, аналитику и публикацию",
+      "Самостоятельно проверяет функциональность и технические интеграции",
+      "Управляет несколькими параллельными потоками и внешними подрядчиками",
+      "Понимает монетизацию подписочных продуктов и performance marketing"
+    ]
+  },
+  "career_tracks": [
+    {
+      "id": "product_technical_pm",
+      "title": "Product / Technical Project Manager",
+      "priority": 1,
+      "positioning": "Управление мобильной и веб-разработкой от требований до релиза с технической самостоятельностью, QA, аналитикой и публикацией.",
+      "focus": [
+        "Delivery Management",
+        "Requirements Management",
+        "Mobile Development",
+        "Web Development",
+        "Subscription Products",
+        "AI-enabled Products",
+        "API Integrations",
+        "Release Management",
+        "Functional and Integration Testing",
+        "Budget and Risk Management"
+      ],
+      "deemphasize": [
+        "Арбитражная специфика",
+        "Поставщики аккаунтов",
+        "Фильтрация трафика как центральная тема"
+      ]
+    },
+    {
+      "id": "affiliate_igaming_pm",
+      "title": "Affiliate / iGaming Project Manager",
+      "priority": 2,
+      "positioning": "Управление быстрыми запусками мобильных и веб-продуктов для iGaming, Betting и performance marketing.",
+      "focus": [
+        "iGaming",
+        "Betting",
+        "Affiliate Marketing",
+        "Performance Marketing",
+        "Mobile Attribution",
+        "ASO and Localization",
+        "Publishing and Moderation",
+        "Contractor Management",
+        "Traffic Infrastructure",
+        "Media Buying Metrics"
+      ],
+      "deemphasize": []
+    }
+  ],
+  "experience": [
+    {
+      "company": "AppsLabs",
+      "title": "Project Manager / Technical Project Manager",
+      "start_date": "2022-01",
+      "end_date": "2026-08",
+      "duration_note": "4 года 8 месяцев",
+      "location": "Удалённо",
+      "domains": [
+        "Mobile",
+        "Web",
+        "Subscription Apps",
+        "iGaming",
+        "Betting",
+        "Affiliate",
+        "Performance Marketing"
+      ],
+      "scope": {
+        "product_launches": "150+ мобильных и веб-продуктов",
+        "typical_delivery_cycle_days": "10–14",
+        "parallel_mobile_projects": "около 10: примерно 6 Android и 4 iOS, дополнительно веб- и аналитические задачи",
+        "direct_reports": "2 разработчика и 2 дизайнера",
+        "cross_functional_roles": "1 Tech Lead и 1 специалист по публикации приложений",
+        "subscription_apps_published": "15–20",
+        "web_projects_launched": "50+",
+        "client_mobile_projects": 4
+      },
+      "team_and_ownership": [
+        {
+          "statement": "Прямо управлял двумя разработчиками и двумя дизайнерами.",
+          "ownership": "management",
+          "evidence_status": "confirmed"
+        },
+        {
+          "statement": "Работал параллельно с Tech Lead, который отвечал за техническую архитектуру проектов и технические настройки трекеров.",
+          "ownership": "cross_functional_collaboration",
+          "limitations": "Не приписывать себе единоличное проектирование архитектуры.",
+          "evidence_status": "confirmed"
+        },
+        {
+          "statement": "Координировал специалиста по публикации приложений, при этом лично выполнял значительную часть публикационных операций.",
+          "ownership": "coordination_and_hands_on",
+          "evidence_status": "confirmed"
+        },
+        {
+          "statement": "Отдельного QA-специалиста не было; функциональное и интеграционное тестирование выполнял лично.",
+          "ownership": "hands_on",
+          "evidence_status": "confirmed"
+        }
+      ],
+      "delivery_and_requirements": [
+        "Вёл полный цикл iOS- и Android-продуктов: требования, декомпозиция, приоритеты, сроки, координация, проверка качества, публикация, модерация и сопровождение.",
+        "Переводил бизнес-потребности в технические задания для разработчиков.",
+        "Описывал пользовательские сценарии, экраны, API-интеграции, события аналитики, ожидаемую работу функциональности и критерии приёмки.",
+        "Подбирал и передавал дизайнерам визуальные референсы.",
+        "Управлял бэклогом, приоритетами, сроками, блокерами, изменениями и приёмкой.",
+        "Проводил демонстрации результатов внутренним заказчикам и внешним клиентам."
+      ],
+      "processes": {
+        "kanban": "Непрерывный поток для массовой разработки мобильных приложений.",
+        "adapted_scrum": "Двухнедельные спринты для заказной разработки и собственных инструментов: инициация, анализ, проектирование, разработка, тестирование, демонстрация и приёмка.",
+        "ceremonies": [
+          "Planning Poker",
+          "Два командных созвона в неделю вместо ежедневных встреч",
+          "Обсуждение изменений бэклога",
+          "Презентации заказчику"
+        ],
+        "work_management_tools": [
+          "Trello",
+          "Asana",
+          "Jira"
+        ],
+        "weekly_reporting": [
+          "выполненные задачи",
+          "планы",
+          "сроки",
+          "блокеры",
+          "расходы",
+          "результаты модерации",
+          "результаты публикации"
+        ]
+      },
+      "quality_assurance": [
+        "Проверял пользовательские сценарии и наличие функциональных багов.",
+        "Проверял поведение API и готовность релиза.",
+        "Проверял, доходят ли события до трекеров и корректно ли отображается аналитика.",
+        "Организовывал исправление замечаний и повторную проверку."
+      ],
+      "analytics_integrations": {
+        "tools": [
+          "AppsFlyer",
+          "Kochava",
+          "Branch",
+          "Firebase",
+          "Yandex Metrica",
+          "Keitaro"
+        ],
+        "personal_work": [
+          "Формировал требования к интеграциям.",
+          "Создавал приложения и настройки в кабинетах сервисов.",
+          "Выдавал ключи разработчикам.",
+          "Настраивал события и их параметры.",
+          "После реализации проверял корректность передачи и отображения данных."
+        ],
+        "limitations": "Опыт с Keitaro ограниченный. Техническую архитектуру и часть технических настроек трекеров вёл Tech Lead."
+      },
+      "publishing": {
+        "platforms": [
+          "App Store Connect",
+          "Google Play Console"
+        ],
+        "personal_work": [
+          "Заполнял формы, карточки приложений и метаданные.",
+          "Настраивал локализации и загружал материалы.",
+          "Лично загружал сборки и отправлял приложения на модерацию.",
+          "Разбирал замечания модераторов, организовывал исправления и повторную отправку.",
+          "Настраивал Bundle ID и подписывал iOS-сборки в Xcode.",
+          "Работал с Xcode, TestFlight, APK и AAB."
+        ],
+        "limitations": "Созданием тарифов, подписок и In-App Purchases занимался другой специалист."
+      },
+      "aso_and_localization": {
+        "tools": [
+          "ASOMobile",
+          "ASOworld",
+          "Sensor Tower",
+          "Semrush",
+          "Similarweb"
+        ],
+        "personal_work": [
+          "Анализировал поисковую выдачу, конкурентов и инструменты в топе.",
+          "Подбирал названия, ключевые слова и элементы метаданных.",
+          "Работал с локализациями для Европы, Латинской Америки, Юго-Восточной Азии и Африки.",
+          "Передавал руководителю результаты исследования для принятия продуктовых решений.",
+          "Создавал и дорабатывал часть графических материалов в Adobe Illustrator, Adobe Photoshop и Figma с помощью AI-инструментов."
+        ],
+        "limitations": "Окончательные продуктовые решения принимал руководитель; основную графику также разрабатывали дизайнеры."
+      },
+      "lifecycle_communications": {
+        "tools": [
+          "OneSignal",
+          "Firebase Cloud Messaging"
+        ],
+        "personal_work": [
+          "Самостоятельно настраивал сценарии и тексты push-уведомлений в OneSignal.",
+          "Настраивал ежедневное расписание, геосегментацию и триггеры по действиям пользователя.",
+          "Использовал сценарии регистрации без покупки и приближения окончания активной подписки."
+        ],
+        "limitations": "С Firebase Cloud Messaging работал косвенно через сторонний сервис."
+      },
+      "budget_and_contractors": [
+        "Планировал бюджет по проекту, контролировал расходы и утверждал выплаты без раскрытия сумм.",
+        "Искал кандидатов, проводил интервью, оценивал опыт и портфолио, согласовывал условия и оплату.",
+        "За всё время подобрал около 10–15 разработчиков и дизайнеров.",
+        "Сформировал отношения примерно с шестью партнёрами или компаниями для публикации приложений.",
+        "Работал с поставщиками аккаунтов и другими подрядчиками."
+      ],
+      "risk_management": [
+        "Снижать риск отклонения модерацией помогала предварительная проверка соответствия правилам App Store и Google Play.",
+        "Для риска блокировки аккаунтов искал более надёжных поставщиков.",
+        "Риски проблем с API и аналитикой снижал техническим и интеграционным тестированием.",
+        "Для риска срыва подрядчиков создавал базу проверенных и резервных контактов.",
+        "Следил за изменениями рынка приложений, правил платформ и практики модерации."
+      ],
+      "reason_for_leaving": "Компания изменила структуру, а направление Google PPC было расформировано. Предложенная другая позиция уводила от управления IT-проектами, поэтому выбран дальнейший рост в Project Management и технических компетенциях."
+    },
+    {
+      "company": "General Bakery",
+      "title": "Управляющий сетью кофеен-баров / Operations Manager",
+      "start_date": "2018-09",
+      "end_date": "2021-12",
+      "location": null,
+      "responsibilities": [
+        "Вырос от сотрудника кофейни до управляющего.",
+        "Управлял четырьмя филиалами кофейни-бара; в каждой точке работала команда из четырёх человек, всего до 16 сотрудников.",
+        "Участвовал в подборе и найме сотрудников.",
+        "Участвовал в закупках для открытия и текущей работы заведений.",
+        "Вёл открытие нового заведения от идеи и концепции до запуска и дальнейшей операционной поддержки."
+      ],
+      "achievements": [
+        "Запустил новую точку с бюджетом проекта около 3 млн рублей."
+      ],
+      "evidence_status": "confirmed"
+    },
+    {
+      "company": "Ульяновское конструкторское бюро приборостроения (УКБП, КРЭТ)",
+      "title": "Инженер-исследователь",
+      "start_date": "2017-10",
+      "end_date": "2018-08",
+      "location": "Ульяновск, Россия",
+      "responsibilities": [
+        "Разрабатывал принципиальные электрические схемы приборов авионики.",
+        "Работал с технической документацией.",
+        "Разрабатывал технические задания, перечни элементов и технико-экономические обоснования.",
+        "Участвовал в совместной реализации проектов с различными отделами и командной разработке изделий.",
+        "Участвовал в разработке продукции приборостроения."
+      ],
+      "achievement": "Участвовал в создании кабельного изделия, соединяющего стойку наземного обслуживания самолёта с бортовой авионикой.",
+      "evidence_status": "confirmed"
+    }
+  ],
+  "projects": [
+    {
+      "id": "subscription_mobile_apps",
+      "name": "Подписочные мобильные приложения",
+      "period": "В рамках AppsLabs",
+      "platforms": [
+        "iOS",
+        "Android"
+      ],
+      "volume": "15–20 опубликованных приложений",
+      "product_types": [
+        "VPN",
+        "Фоторедакторы",
+        "Видеоредакторы",
+        "Аудиоредакторы"
+      ],
+      "details": [
+        "VPN использовал заказанную серверную инфраструктуру, ограничения по трафику и бесплатный ограниченный по времени доступ после просмотра рекламы.",
+        "В редакторах через внешние API добавлялись anime-фильтры, фотосессии с заменой лица и другие трендовые функции обработки фото, видео и музыки.",
+        "Провайдеры API выбирались по функциональности и стоимости; их конкретные названия не подтверждены."
+      ],
+      "metrics": {
+        "successful_app_monthly_installs": "5000–15000",
+        "install_to_subscription_conversion": "около 1%",
+        "weaker_apps_monthly_installs": "несколько тысяч"
+      },
+      "limitations": "Создание подписок и In-App Purchases выполнял другой специалист."
+    },
+    {
+      "id": "wildberries_games",
+      "name": "Игровые приложения для продавцов Wildberries",
+      "volume": 4,
+      "status": "Опубликованы, приняты и переданы заказчикам",
+      "responsibility": [
+        "Сбор требований",
+        "Оценка сроков",
+        "Согласование изменений",
+        "Демонстрации",
+        "Организация приёмки"
+      ],
+      "mechanics": [
+        "Ежедневная игра и начисление очков.",
+        "Обмен очков на скидки.",
+        "Push-уведомления об акциях и других товарах продавца."
+      ],
+      "limitations": "После передачи заказчикам продуктовые метрики не были доступны; не заявлять влияние на продажи, retention или активность."
+    },
+    {
+      "id": "lightweight_web_projects",
+      "name": "Лёгкие многостраничные веб-проекты",
+      "volume": "50+",
+      "stack": [
+        "PHP",
+        "HTML",
+        "CSS",
+        "JavaScript",
+        "MySQL",
+        "Linux",
+        "Nginx",
+        "Apache",
+        "Cloudflare",
+        "Git"
+      ],
+      "personal_work": [
+        "Создавал и запускал простые многостраничные сайты с небольшими базами данных.",
+        "Подключался к серверам по SSH, работал с файлами и правами.",
+        "Устанавливал и запускал сервисы, подключал библиотеки и зависимости.",
+        "Настраивал Apache, Nginx, Cloudflare и выполнял деплой.",
+        "Настраивал маршрутизацию, контроль доступа и фильтрацию по стране/IP, устройству, ОС, источнику, User-Agent, числу и скорости посещений, а также IP из блок-листов.",
+        "Использовал Codex и Claude Code для генерации и улучшения кода, диагностики, серверных задач и быстрого прототипирования."
+      ],
+      "sql_level": "Базовые SELECT, INSERT и UPDATE.",
+      "positioning_note": "Для продуктовых компаний описывать фильтрацию нейтрально как правила маршрутизации, контроля доступа и фильтрации трафика."
+    },
+    {
+      "id": "media_buying",
+      "name": "Практический медиабаинг",
+      "duration": "6–7 месяцев",
+      "domains": [
+        "Casino",
+        "Betting",
+        "Performance Marketing"
+      ],
+      "regions": [
+        "Африка",
+        "Юго-Восточная Азия"
+      ],
+      "best_confirmed_result": {
+        "roi": "43%",
+        "profit_usd": "около 4300"
+      },
+      "metrics_understood": [
+        "ROI",
+        "Spend",
+        "Revenue",
+        "Profit",
+        "Leads",
+        "Conversion",
+        "CPA",
+        "CPL",
+        "Average Check",
+        "Traffic Quality",
+        "Payback"
+      ],
+      "positioning_note": "Позиционировать как практический опыт performance marketing и AdTech, а не как полноценную разработку классической AdTech-платформы."
+    },
+    {
+      "id": "app_store_lifetime",
+      "name": "Срок жизни приложений в сторах",
+      "result": "В лучшие периоды около 10% приложений оставались в сторах более 40 дней; отдельные приложения — 4–5 месяцев.",
+      "evidence_status": "confirmed"
+    }
+  ],
+  "achievements": [
+    {
+      "statement": "Координировал более 150 запусков мобильных и веб-продуктов.",
+      "metric": "150+",
+      "context": "AppsLabs",
+      "ownership": "delivery_management",
+      "evidence_status": "confirmed",
+      "relevant_tracks": [
+        "product_technical_pm",
+        "affiliate_igaming_pm"
+      ]
+    },
+    {
+      "statement": "Обеспечивал типичный цикл запуска 10–14 дней.",
+      "metric": "10–14 дней",
+      "context": "Высокопоточная мобильная и веб-разработка",
+      "ownership": "delivery_management",
+      "evidence_status": "confirmed",
+      "relevant_tracks": [
+        "product_technical_pm",
+        "affiliate_igaming_pm"
+      ]
+    },
+    {
+      "statement": "Параллельно вёл около 10 мобильных проектов: примерно 6 Android и 4 iOS.",
+      "metric": "около 10",
+      "context": "Дополнительно присутствовали веб- и аналитические задачи",
+      "ownership": "portfolio_coordination",
+      "evidence_status": "confirmed",
+      "relevant_tracks": [
+        "product_technical_pm",
+        "affiliate_igaming_pm"
+      ]
+    },
+    {
+      "statement": "Довёл до публикации 15–20 подписочных приложений для iOS и Android.",
+      "metric": "15–20",
+      "context": "VPN и AI-enabled фото-, видео- и аудиоредакторы",
+      "ownership": "delivery_and_publishing",
+      "limitations": "Подписки и IAP создавал другой специалист.",
+      "evidence_status": "confirmed",
+      "relevant_tracks": [
+        "product_technical_pm",
+        "affiliate_igaming_pm"
+      ]
+    },
+    {
+      "statement": "Успешное приложение достигало 5000–15000 установок в месяц при конверсии из установки в подписку около 1%.",
+      "metric": "5000–15000 установок в месяц; около 1%",
+      "context": "Один успешный подписочный продукт",
+      "ownership": "team_result",
+      "limitations": "Не распространять показатель на все приложения.",
+      "evidence_status": "confirmed",
+      "relevant_tracks": [
+        "product_technical_pm",
+        "affiliate_igaming_pm"
+      ]
+    },
+    {
+      "statement": "Создал и запустил более 50 лёгких веб-проектов.",
+      "metric": "50+",
+      "context": "Простые многостраничные сайты с небольшими базами данных",
+      "ownership": "hands_on_with_ai_assistance",
+      "limitations": "Не позиционировать как senior full-stack development.",
+      "evidence_status": "confirmed",
+      "relevant_tracks": [
+        "product_technical_pm",
+        "affiliate_igaming_pm"
+      ]
+    },
+    {
+      "statement": "Лучший подтверждённый результат медиабаинга — ROI 43% и прибыль около 4300 USD.",
+      "metric": "ROI 43%; profit ≈4300 USD",
+      "context": "6–7 месяцев практической работы с Casino и Betting в Африке и ЮВА",
+      "ownership": "hands_on",
+      "evidence_status": "confirmed",
+      "relevant_tracks": [
+        "affiliate_igaming_pm"
+      ]
+    },
+    {
+      "statement": "Управлял четырьмя филиалами и командами до 16 сотрудников.",
+      "metric": "4 филиала; до 16 сотрудников",
+      "context": "General Bakery",
+      "ownership": "operations_management",
+      "evidence_status": "confirmed",
+      "relevant_tracks": [
+        "product_technical_pm",
+        "affiliate_igaming_pm"
+      ]
+    },
+    {
+      "statement": "Участвовал в запуске нового заведения с бюджетом около 3 млн рублей.",
+      "metric": "≈3 млн RUB",
+      "context": "Полный цикл от идеи и концепции до открытия и поддержки",
+      "ownership": "project_and_operations_management",
+      "evidence_status": "confirmed",
+      "relevant_tracks": [
+        "product_technical_pm"
+      ]
+    }
+  ],
+  "skills": {
+    "project_management": [
+      "End-to-end delivery",
+      "Сбор и анализ требований",
+      "Декомпозиция задач",
+      "Backlog Management",
+      "Приоритизация",
+      "Планирование сроков",
+      "Оценка сроков",
+      "Управление изменениями",
+      "Управление рисками и блокерами",
+      "Бюджетирование и контроль расходов",
+      "Управление подрядчиками",
+      "Отчётность",
+      "Демонстрации и приёмка",
+      "Release Management",
+      "Kanban",
+      "Adapted Scrum",
+      "Двухнедельные спринты",
+      "Planning Poker"
+    ],
+    "team_management": [
+      "Прямое управление разработчиками и дизайнерами",
+      "Кросс-функциональная координация",
+      "Найм и интервьюирование",
+      "Оценка опыта и портфолио",
+      "Согласование оплаты",
+      "Управление поставщиками и партнёрами"
+    ],
+    "product_and_delivery": [
+      "Пользовательские сценарии",
+      "Технические задания",
+      "Критерии приёмки",
+      "API requirements",
+      "Analytics event requirements",
+      "Subscription Products",
+      "Mobile Products",
+      "Web Products",
+      "AI-enabled Products",
+      "Конкурентный анализ"
+    ],
+    "quality_assurance": [
+      "Functional Testing",
+      "Integration Testing",
+      "User Flow Testing",
+      "API Behavior Testing",
+      "Analytics Event Validation",
+      "Release Readiness",
+      "Bug Reporting and Retesting"
+    ],
+    "mobile_publishing": [
+      "App Store Connect",
+      "Google Play Console",
+      "Build Uploads",
+      "Moderation",
+      "Localization",
+      "Metadata",
+      "Bundle ID",
+      "iOS Signing",
+      "TestFlight",
+      "APK",
+      "AAB"
+    ],
+    "analytics_and_growth": [
+      "Mobile Attribution",
+      "Event Tracking",
+      "ASO",
+      "Localization",
+      "Push Notifications",
+      "Lifecycle Communications",
+      "Performance Marketing Metrics",
+      "Competitor Research"
+    ],
+    "technical": [
+      "REST API и JSON на уровне постановки задач, интеграций и тестирования",
+      "Базовый SQL: SELECT, INSERT, UPDATE",
+      "PHP, HTML, CSS и JavaScript для простых веб-проектов",
+      "MySQL для небольших баз данных",
+      "Linux и SSH",
+      "Nginx и Apache",
+      "Cloudflare",
+      "Базовые Git-команды и деплой",
+      "AI-assisted development с Codex и Claude Code"
+    ],
+    "domain": [
+      "iGaming",
+      "Betting",
+      "Affiliate Marketing",
+      "Performance Marketing",
+      "Subscription Monetization",
+      "Mobile Apps",
+      "ASO"
+    ]
+  },
+  "tools_and_technologies": [
+    {
+      "name": "AppsFlyer",
+      "category": "mobile_attribution",
+      "ownership": "hands_on_configuration_and_validation",
+      "proficiency": "practical",
+      "context": "Создание приложений и настроек, ключи, события, проверка передачи данных",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": null
+    },
+    {
+      "name": "Kochava",
+      "category": "mobile_attribution",
+      "ownership": "hands_on_configuration_and_validation",
+      "proficiency": "practical",
+      "context": "Требования, настройки и проверка аналитических данных",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": null
+    },
+    {
+      "name": "Branch",
+      "category": "mobile_attribution_and_deep_linking",
+      "ownership": "hands_on_configuration_and_validation",
+      "proficiency": "practical",
+      "context": "Интеграционные требования, настройки, события и проверка данных",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": null
+    },
+    {
+      "name": "Firebase",
+      "category": "mobile_platform_and_analytics",
+      "ownership": "requirements_and_validation",
+      "proficiency": "practical_limited",
+      "context": "Аналитика и косвенная работа с FCM",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": "FCM использовался косвенно через сторонний сервис."
+    },
+    {
+      "name": "Yandex Metrica",
+      "category": "web_analytics",
+      "ownership": "hands_on_configuration_and_validation",
+      "proficiency": "practical",
+      "context": "События и проверка аналитики",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": null
+    },
+    {
+      "name": "Keitaro",
+      "category": "tracking",
+      "ownership": "limited_hands_on",
+      "proficiency": "basic",
+      "context": "Ограниченная практическая работа",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["affiliate_igaming_pm"],
+      "limitations": "Не заявлять глубокую экспертизу."
+    },
+    {
+      "name": "OneSignal",
+      "category": "push_notifications",
+      "ownership": "hands_on",
+      "proficiency": "practical",
+      "context": "Сценарии, тексты, расписание, гео- и поведенческие триггеры",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": null
+    },
+    {
+      "name": "App Store Connect",
+      "category": "mobile_publishing",
+      "ownership": "hands_on",
+      "proficiency": "practical",
+      "context": "Карточки, локализации, сборки, модерация и повторная отправка",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": "Не создавал тарифы, подписки и IAP."
+    },
+    {
+      "name": "Google Play Console",
+      "category": "mobile_publishing",
+      "ownership": "hands_on",
+      "proficiency": "practical",
+      "context": "Карточки, локализации, APK/AAB, модерация и повторная отправка",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": "Не создавал тарифы, подписки и IAP."
+    },
+    {
+      "name": "Xcode",
+      "category": "ios_release_tools",
+      "ownership": "hands_on_release_operations",
+      "proficiency": "practical_for_publishing",
+      "context": "Bundle ID, подписание и работа со сборками",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": "Не заявлять профессиональную разработку на Swift."
+    },
+    {
+      "name": "TestFlight",
+      "category": "ios_testing_and_distribution",
+      "ownership": "hands_on",
+      "proficiency": "practical",
+      "context": "Тестирование и распространение iOS-сборок",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": null
+    },
+    {
+      "name": "ASOMobile / ASOworld / Sensor Tower",
+      "category": "aso",
+      "ownership": "hands_on_research",
+      "proficiency": "practical",
+      "context": "Поисковая выдача, конкуренты, названия, ключевые слова и метаданные",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": null
+    },
+    {
+      "name": "Semrush / Similarweb",
+      "category": "market_and_competitor_research",
+      "ownership": "hands_on_research",
+      "proficiency": "practical",
+      "context": "Анализ конкурентов и топовых инструментов; выводы передавались руководителю",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": "Финальное продуктовое решение принимал руководитель."
+    },
+    {
+      "name": "Trello / Asana / Jira",
+      "category": "project_management",
+      "ownership": "hands_on",
+      "proficiency": "practical",
+      "context": "Настройка проектов, Kanban-доски, задачи и контроль исполнения",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": null
+    },
+    {
+      "name": "PHP / HTML / CSS / JavaScript / MySQL",
+      "category": "web_development",
+      "ownership": "hands_on_with_ai_assistance",
+      "proficiency": "basic_to_practical_for_lightweight_projects",
+      "context": "50+ простых многостраничных сайтов и небольшие базы данных",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": "Не позиционировать как senior full-stack developer. SQL только базовый."
+    },
+    {
+      "name": "Linux / SSH / Nginx / Apache / Cloudflare / Git",
+      "category": "web_infrastructure",
+      "ownership": "hands_on",
+      "proficiency": "practical_for_deployment_and_configuration",
+      "context": "Серверы, файлы и права, сервисы, зависимости, веб-серверы, фильтрация, деплой",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": "Git — базовые команды; не заявлять DevOps/SRE-экспертизу."
+    },
+    {
+      "name": "Adobe Illustrator / Adobe Photoshop / Figma",
+      "category": "design_tools",
+      "ownership": "hands_on_supporting",
+      "proficiency": "working_level",
+      "context": "Создание и доработка материалов, референсы и помощь дизайнерам",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": "Основную графику также создавали дизайнеры; не позиционировать как ведущего продуктового дизайнера."
+    },
+    {
+      "name": "Codex / Claude Code",
+      "category": "ai_assisted_development",
+      "ownership": "hands_on",
+      "proficiency": "practical",
+      "context": "Сайты, PHP-задачи, серверное окружение, диагностика, генерация и улучшение кода, прототипирование",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": "AI-помощь не превращать в утверждение о senior-разработке."
+    },
+    {
+      "name": "Swift / Kotlin / Flutter / React Native / Unity",
+      "category": "mobile_team_technologies",
+      "ownership": "managed_team_technology",
+      "proficiency": "technical_familiarity_as_project_manager",
+      "context": "Технологии разработчиков и проектов, которыми управлял кандидат",
+      "evidence_status": "confirmed",
+      "relevant_tracks": ["product_technical_pm", "affiliate_igaming_pm"],
+      "limitations": "Не указывать как личные языки и фреймворки коммерческой разработки."
+    }
+  ],
+  "education": [
+    {
+      "institution": "Ульяновский государственный технический университет (УлГТУ)",
+      "degree": "Высшее образование / бакалавриат",
+      "field": "Радиотехника",
+      "start_date": "2014-09",
+      "end_date": "2018-08"
+    }
+  ],
+  "languages": [
+    {
+      "language": "Русский",
+      "level": "Родной"
+    },
+    {
+      "language": "Английский",
+      "level": "B1",
+      "limitations": "Не указывать C1 или Advanced."
+    }
+  ],
+  "portfolio": [
+    {
+      "name": "Tower Glass Cleaners",
+      "url": "https://tower-glass-cleaners.pages.dev/",
+      "type": "web_project"
+    },
+    {
+      "name": "Fishing VR Guide",
+      "url": "https://fishingvrguide.com/",
+      "type": "web_project"
+    }
+  ],
+  "career_context": {
+    "reason_for_job_search": "После изменения структуры компании направление Google PPC было расформировано. Предложенная альтернативная роль вела в другом профессиональном направлении, поэтому кандидат решил продолжить развитие в управлении IT-проектами и технических компетенциях.",
+    "safe_interview_version": "Компания прошла реструктуризацию, и моё направление было расформировано. Я решил продолжить карьеру в Project Management, потому что хочу развиваться именно в управлении мобильными и веб-продуктами и усиливать техническую экспертизу.",
+    "positioning_principles": [
+      "Технически самостоятельный Project Manager, а не senior-разработчик.",
+      "Сильная сторона — быстрые запуски, параллельные проекты и перевод бизнеса в технические требования.",
+      "iGaming и affiliate использовать как релевантную отраслевую экспертизу, но не делать центральной темой для белых продуктовых компаний."
+    ]
+  },
+  "generation_rules": {
+    "relevant_fact_share": "Ориентировочно 30–40% полной базы для одной вакансии",
+    "rules": [
+      "Сначала определить карьерную ветку и обязательные требования вакансии.",
+      "Использовать формулировки и ключевые слова вакансии только при наличии подтверждённого эквивалентного опыта.",
+      "Не менять даты, числа, уровни владения и границы ответственности.",
+      "Отделять личное выполнение от управления, координации и технологий команды.",
+      "Не публиковать работодателю внутренние служебные поля, limitations, do_not_claim и missing_information.",
+      "Если обязательного факта нет, сформировать вопрос кандидату, а не придумывать ответ.",
+      "Для продуктовых компаний акцентировать delivery, требования, QA, подписочные продукты, API, аналитику и техническую самостоятельность.",
+      "Для iGaming и affiliate акцентировать быстрые запуски, трекеры, ASO, публикацию, подрядчиков, инфраструктуру и медиабаинг.",
+      "Не превращать весь канонический профиль в отправляемое резюме; адаптировать объём под площадку и вакансию."
+    ],
+    "supported_outputs": [
+      "ATS resume",
+      "LinkedIn profile",
+      "Cover letter",
+      "Vacancy fit analysis",
+      "Screening question answers",
+      "Interview preparation"
+    ]
+  },
+  "do_not_claim": [
+    {
+      "claim": "Английский C1 или Advanced",
+      "reason": "Подтверждённый уровень — B1."
+    },
+    {
+      "claim": "Senior-разработчик или senior full-stack developer",
+      "reason": "Кандидат — технически самостоятельный Project Manager с практическим веб-опытом."
+    },
+    {
+      "claim": "Глубокая коммерческая разработка на Swift, Kotlin, Flutter, React Native или Unity",
+      "reason": "Это технологии управляемых команд."
+    },
+    {
+      "claim": "Продвинутый SQL, оптимизация баз или сложная аналитика SQL",
+      "reason": "Подтверждены только базовые SELECT, INSERT и UPDATE."
+    },
+    {
+      "claim": "Лично создавал подписки и In-App Purchases",
+      "reason": "Этим занимался другой специалист."
+    },
+    {
+      "claim": "Единолично определял продуктовую стратегию",
+      "reason": "Кандидат проводил анализ и готовил выводы; финальные решения принимал руководитель."
+    },
+    {
+      "claim": "Конкретные названия AI API для редакторов",
+      "reason": "Названия провайдеров не сохранились."
+    },
+    {
+      "claim": "Рост продаж, retention или активности в проектах Wildberries",
+      "reason": "После передачи приложений заказчикам метрики были недоступны."
+    },
+    {
+      "claim": "Swift, Kotlin, Flutter, React Native и Unity как личный стек программирования",
+      "reason": "Это технологии проектов и разработчиков, которыми управлял кандидат."
+    },
+    {
+      "claim": "Глубокая экспертиза Keitaro",
+      "reason": "Подтверждён только ограниченный опыт."
+    },
+    {
+      "claim": "DevOps или SRE-эксперт",
+      "reason": "Есть практическая серверная самостоятельность, но не подтверждён соответствующий профессиональный уровень."
+    },
+    {
+      "claim": "Неизвестные бюджеты, контакты, сертификаты и результаты",
+      "reason": "Использовать только подтверждённые данные."
+    }
+  ],
+  "missing_information": [
+    {
+      "field": "identity.phone",
+      "description": "Номер телефона",
+      "status": "missing"
+    },
+    {
+      "field": "identity.email",
+      "description": "Электронная почта",
+      "status": "missing"
+    },
+    {
+      "field": "job_search.desired_income_rub",
+      "description": "Желаемый доход в рублях и формат gross/net",
+      "status": "missing"
+    },
+    {
+      "field": "job_search.minimum_income.gross_or_net",
+      "description": "Уточнение, 1500 USD указаны до или после налогов",
+      "status": "missing"
+    },
+    {
+      "field": "projects.subscription_mobile_apps.ai_api_providers",
+      "description": "Названия AI API, если удастся восстановить",
+      "status": "optional_missing"
+    }
+  ]
+}

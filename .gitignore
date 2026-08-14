@@ -1,1 +1,10 @@
 .worktrees/
+.env
+*.session*
+*.sqlite3*
+/data/
+/backups/
+.venv/
+.pytest_cache/
+__pycache__/
+*.py[cod]
