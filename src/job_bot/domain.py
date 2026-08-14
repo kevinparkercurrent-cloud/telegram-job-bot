@@ -37,6 +37,7 @@ class Vacancy(BaseModel):
     english_required: str | None = None
     recruiter_username: str | None = None
     external_urls: list[HttpUrl] = Field(default_factory=list)
+    extraction_warnings: list[str] = Field(default_factory=list)
 
 
 class Assessment(BaseModel):

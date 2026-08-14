@@ -5,6 +5,7 @@ import json
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import AsyncIterator
 
@@ -256,3 +257,39 @@ class Database:
                 "UPDATE vacancies SET status = ? WHERE id = ?",
                 (VacancyStatus.SENT.value, vacancy_id),
             )
+
+    async def save_exchange_rates(
+        self, rate_date: str, rates: dict[str, Decimal]
+    ) -> None:
+        async with self.transaction() as connection:
+            await connection.execute(
+                "DELETE FROM exchange_rates WHERE rate_date = ?", (rate_date,)
+            )
+            await connection.executemany(
+                """
+                INSERT INTO exchange_rates(rate_date, currency, rub_per_unit)
+                VALUES (?, ?, ?)
+                """,
+                [(rate_date, currency, str(value)) for currency, value in rates.items()],
+            )
+
+    async def latest_exchange_rates(self) -> tuple[str, dict[str, Decimal]] | None:
+        cursor = await self._connection.execute(
+            "SELECT MAX(rate_date) AS rate_date FROM exchange_rates"
+        )
+        row = await cursor.fetchone()
+        if row is None or row["rate_date"] is None:
+            return None
+        rate_date = str(row["rate_date"])
+        cursor = await self._connection.execute(
+            """
+            SELECT currency, rub_per_unit FROM exchange_rates
+            WHERE rate_date = ?
+            """,
+            (rate_date,),
+        )
+        rates = {
+            str(item["currency"]): Decimal(str(item["rub_per_unit"]))
+            for item in await cursor.fetchall()
+        }
+        return rate_date, rates
