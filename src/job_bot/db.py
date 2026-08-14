@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS vacancies (
     payload_json TEXT NOT NULL,
     raw_text TEXT NOT NULL,
     status TEXT NOT NULL,
+    notified_at TEXT,
     created_at TEXT NOT NULL,
     UNIQUE(channel_id, message_id)
 );
@@ -287,6 +288,48 @@ class Database:
             WHERE v.status = ? AND json_extract(a.payload_json, '$.match_class') = ?
             """,
             (VacancyStatus.QUEUED.value, MatchClass.BORDERLINE.value),
+        )
+        row = await cursor.fetchone()
+        return int(row["count"])
+
+    async def list_digest_pending(self, limit: int = 20) -> list[dict[str, object]]:
+        cursor = await self._connection.execute(
+            """
+            SELECT v.id, v.payload_json AS vacancy_json, v.raw_text,
+                   a.payload_json AS assessment_json,
+                   d.payload_json AS draft_json
+            FROM vacancies v
+            JOIN assessments a ON a.vacancy_id = v.id
+            JOIN drafts d ON d.vacancy_id = v.id AND d.active = 1
+            WHERE v.status = ? AND v.notified_at IS NULL
+              AND json_extract(a.payload_json, '$.match_class') = ?
+            ORDER BY v.published_at ASC LIMIT ?
+            """,
+            (VacancyStatus.QUEUED.value, MatchClass.BORDERLINE.value, limit),
+        )
+        return [dict(row) for row in await cursor.fetchall()]
+
+    async def mark_notified(self, vacancy_ids: list[str], when: datetime) -> None:
+        if not vacancy_ids:
+            return
+        async with self.transaction() as connection:
+            await connection.executemany(
+                "UPDATE vacancies SET notified_at = ? WHERE id = ?",
+                [(when.isoformat(), vacancy_id) for vacancy_id in vacancy_ids],
+            )
+
+    async def ping(self) -> bool:
+        try:
+            cursor = await self._connection.execute("SELECT 1")
+            row = await cursor.fetchone()
+        except aiosqlite.Error:
+            return False
+        return row is not None and row[0] == 1
+
+    async def queue_count(self) -> int:
+        cursor = await self._connection.execute(
+            "SELECT COUNT(*) AS count FROM vacancies WHERE status = ?",
+            (VacancyStatus.QUEUED.value,),
         )
         row = await cursor.fetchone()
         return int(row["count"])
