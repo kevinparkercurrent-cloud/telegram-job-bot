@@ -50,3 +50,10 @@ def test_candidate_profile_exposes_stable_verified_fact_ids(profile_path: Path) 
     with pytest.raises(KeyError):
         profile.fact_text("not.a.real.fact")
 
+
+def test_candidate_profile_does_not_expose_missing_information_as_evidence(
+    profile_path: Path,
+) -> None:
+    profile = load_candidate_profile(profile_path)
+    assert not any(fact_id.startswith("missing_information.") for fact_id in profile.fact_ids)
+    assert not any(fact_id.startswith("do_not_claim.") for fact_id in profile.fact_ids)

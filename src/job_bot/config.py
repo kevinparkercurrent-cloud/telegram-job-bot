@@ -53,7 +53,25 @@ class CandidateProfile(BaseModel):
     _facts: dict[str, str] = PrivateAttr(default_factory=dict)
 
     def model_post_init(self, context: Any, /) -> None:
-        self._facts = _flatten_facts(self.model_dump(mode="json"))
+        evidence_roots = {
+            "identity",
+            "job_search",
+            "professional_summary",
+            "career_tracks",
+            "experience",
+            "projects",
+            "achievements",
+            "skills",
+            "tools_and_technologies",
+            "education",
+            "languages",
+            "portfolio",
+            "career_context",
+        }
+        profile_data = self.model_dump(mode="json")
+        self._facts = _flatten_facts(
+            {key: value for key, value in profile_data.items() if key in evidence_roots}
+        )
 
     @property
     def fact_ids(self) -> set[str]:
@@ -95,4 +113,3 @@ class Settings(BaseSettings):
 
 def load_candidate_profile(path: Path) -> CandidateProfile:
     return CandidateProfile.model_validate_json(path.read_text(encoding="utf-8"))
-
