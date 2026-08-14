@@ -11,7 +11,7 @@ from typing import AsyncIterator
 
 import aiosqlite
 
-from job_bot.domain import Vacancy, VacancyStatus
+from job_bot.domain import Assessment, Draft, MatchClass, Vacancy, VacancyStatus
 
 
 SCHEMA = """
@@ -217,6 +217,118 @@ class Database:
                 "INSERT INTO feedback(vacancy_id, decision, created_at) VALUES (?, ?, ?)",
                 (vacancy_id, decision, now),
             )
+
+    async def set_vacancy_status(self, vacancy_id: str, status: str) -> None:
+        await self._connection.execute(
+            "UPDATE vacancies SET status = ? WHERE id = ?", (status, vacancy_id)
+        )
+        await self._connection.commit()
+
+    async def save_assessment(self, vacancy_id: str, assessment: Assessment) -> None:
+        await self._connection.execute(
+            """
+            INSERT INTO assessments(vacancy_id, payload_json, created_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(vacancy_id) DO UPDATE SET
+                payload_json=excluded.payload_json,
+                created_at=excluded.created_at
+            """,
+            (vacancy_id, assessment.model_dump_json(), _utc_now()),
+        )
+        await self._connection.commit()
+
+    async def save_draft(
+        self, draft_id: str, vacancy_id: str, draft: Draft, draft_hash: str
+    ) -> None:
+        async with self.transaction() as connection:
+            await connection.execute(
+                "UPDATE drafts SET active = 0 WHERE vacancy_id = ?", (vacancy_id,)
+            )
+            await connection.execute(
+                """
+                INSERT INTO drafts(
+                    id, vacancy_id, payload_json, draft_hash, active, created_at
+                ) VALUES (?, ?, ?, ?, 1, ?)
+                """,
+                (draft_id, vacancy_id, draft.model_dump_json(), draft_hash, _utc_now()),
+            )
+
+    async def get_assessment(self, vacancy_id: str) -> Assessment | None:
+        cursor = await self._connection.execute(
+            "SELECT payload_json FROM assessments WHERE vacancy_id = ?", (vacancy_id,)
+        )
+        row = await cursor.fetchone()
+        return Assessment.model_validate_json(row["payload_json"]) if row else None
+
+    async def get_active_draft(self, vacancy_id: str) -> tuple[str, Draft, str] | None:
+        cursor = await self._connection.execute(
+            """
+            SELECT id, payload_json, draft_hash FROM drafts
+            WHERE vacancy_id = ? AND active = 1
+            """,
+            (vacancy_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return (
+            str(row["id"]),
+            Draft.model_validate_json(row["payload_json"]),
+            str(row["draft_hash"]),
+        )
+
+    async def count_digest_pending(self) -> int:
+        cursor = await self._connection.execute(
+            """
+            SELECT COUNT(*) AS count
+            FROM vacancies v
+            JOIN assessments a ON a.vacancy_id = v.id
+            WHERE v.status = ? AND json_extract(a.payload_json, '$.match_class') = ?
+            """,
+            (VacancyStatus.QUEUED.value, MatchClass.BORDERLINE.value),
+        )
+        row = await cursor.fetchone()
+        return int(row["count"])
+
+    async def list_by_statuses(
+        self, statuses: tuple[str, ...], limit: int = 20
+    ) -> list[StoredVacancy]:
+        placeholders = ",".join("?" for _ in statuses)
+        cursor = await self._connection.execute(
+            f"""
+            SELECT payload_json, raw_text, status FROM vacancies
+            WHERE status IN ({placeholders})
+            ORDER BY published_at DESC LIMIT ?
+            """,
+            (*statuses, limit),
+        )
+        results: list[StoredVacancy] = []
+        for row in await cursor.fetchall():
+            payload = json.loads(row["payload_json"])
+            payload["raw_text"] = row["raw_text"]
+            results.append(
+                StoredVacancy(
+                    vacancy=Vacancy.model_validate(payload), status=str(row["status"])
+                )
+            )
+        return results
+
+    async def set_setting(self, key: str, value: str) -> None:
+        await self._connection.execute(
+            """
+            INSERT INTO settings(key, value, updated_at) VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
+            """,
+            (key, value, _utc_now()),
+        )
+        await self._connection.commit()
+
+    async def get_setting(self, key: str) -> str | None:
+        cursor = await self._connection.execute(
+            "SELECT value FROM settings WHERE key = ?", (key,)
+        )
+        row = await cursor.fetchone()
+        return str(row["value"]) if row else None
 
     async def purge_raw_text(self, before: datetime) -> int:
         cursor = await self._connection.execute(
