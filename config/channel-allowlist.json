@@ -1,0 +1,22 @@
+[
+  {"username": "normrabota", "label": "Норм работа"},
+  {"username": "dnative_job", "label": "Вакансии SMM и Digital"},
+  {"username": "workasap", "label": "Работа в digital и media"},
+  {"username": "perezvonyu", "label": "Мы вам перезвоним"},
+  {"username": "honeyiwantmoney", "label": "Honey I Want Money"},
+  {"username": "marketing_jobs", "label": "Marketing Jobs"},
+  {"username": "morejobs", "label": "Больше джобсов"},
+  {"username": "prwork", "label": "PR-работа"},
+  {"username": "runello_rus_digitalmarketing", "label": "Growth and Marketing Jobs"},
+  {"username": "digital_jobster", "label": "Джобстер Digital"},
+  {"username": "hireproproduct", "label": "Hire ProProduct"},
+  {"username": "products_jobs", "label": "Products Jobs"},
+  {"username": "projects_jobs_feed", "label": "Management Jobs"},
+  {"username": "forproducts", "label": "Job for Products and Projects"},
+  {"username": "productjobgo", "label": "Вакансии для продакт-менеджеров"},
+  {"username": "jobs_pm", "label": "PM Jobs"},
+  {"username": "product_project_job", "label": "Product and Project Jobs"},
+  {"username": "onlinevakansii", "label": "Удалённая работа — вакансии"},
+  {"username": "workremotejob", "label": "Вакансии — удалённая работа"},
+  {"username": "workayte", "label": "Работа в IT"}
+]
