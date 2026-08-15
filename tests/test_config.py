@@ -5,7 +5,10 @@ import pytest
 from job_bot.config import Settings, load_candidate_profile
 
 
-def test_settings_reject_missing_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_settings_reject_missing_secrets(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
     for name in (
         "TELEGRAM_API_ID",
         "TELEGRAM_API_HASH",
