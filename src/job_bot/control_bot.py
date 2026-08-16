@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from job_bot.approvals import ApprovalInvalid, ApprovalService
 from job_bot.db import Database
 from job_bot.domain import Draft
+from job_bot.pipeline import VacancyCard
 from job_bot.sender import SafeSender
 
 
@@ -22,6 +23,8 @@ class ControlResponse:
     text: str = ""
     alert: str | None = None
     mutated: bool = False
+    begin_edit_vacancy_id: str | None = None
+    card: VacancyCard | None = None
 
 
 class ControlActions(Protocol):
@@ -81,6 +84,47 @@ class ControlBotService:
         self._admin_user_id = admin_user_id
         self._actions = actions
 
+    async def replace_draft(
+        self, vacancy_id: str, text: str
+    ) -> ControlResponse:
+        if self._actions is None:
+            return ControlResponse(text="Редактирование пока недоступно")
+        if len(text) > 3500:
+            return ControlResponse(
+                text="Текст отклика не должен превышать 3500 символов"
+            )
+        result = await self._actions.edit(vacancy_id, text)
+        return ControlResponse(
+            text=result,
+            card=await self._vacancy_card(vacancy_id),
+            mutated=True,
+        )
+
+    async def _vacancy_card(self, vacancy_id: str) -> VacancyCard | None:
+        stored = await self._database.get_vacancy(vacancy_id)
+        assessment = await self._database.get_assessment(vacancy_id)
+        active = await self._database.get_active_draft(vacancy_id)
+        if stored is None or assessment is None or active is None:
+            return None
+        _, draft, _ = active
+        vacancy = stored.vacancy
+        return VacancyCard(
+            vacancy_id=vacancy.id,
+            title=vacancy.title or "Вакансия без указанного названия",
+            score=assessment.score,
+            match_class=assessment.match_class.value,
+            reasons=assessment.reasons,
+            warnings=assessment.warnings,
+            recruiter_username=vacancy.recruiter_username,
+            source_post_url=(
+                str(vacancy.source_post_url)
+                if vacancy.source_post_url
+                else None
+            ),
+            draft_text=draft.text,
+            draft_origin=draft.origin,
+        )
+
     async def dispatch(self, request: ControlRequest) -> ControlResponse:
         if request.user_id != self._admin_user_id:
             return ControlResponse(alert="Доступ запрещён")
@@ -116,6 +160,18 @@ class ControlBotService:
         action, separator, vacancy_id = data.partition(":")
         if not separator or not vacancy_id:
             return ControlResponse(text="Некорректное действие")
+        if action == "edit_prompt":
+            active = await self._database.get_active_draft(vacancy_id)
+            if active is None:
+                return ControlResponse(text="Активный черновик не найден")
+            _, draft, _ = active
+            return ControlResponse(
+                text=(
+                    f"Текущий черновик:\n\n{draft.text}\n\n"
+                    "Отправьте новый текст одним сообщением или /cancel"
+                ),
+                begin_edit_vacancy_id=vacancy_id,
+            )
         if action == "approve":
             result = await self._actions.approve(vacancy_id)
         elif action in {"skip", "not_relevant"}:

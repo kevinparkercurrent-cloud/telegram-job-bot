@@ -1,10 +1,18 @@
 import pytest
+from datetime import datetime, timezone
 
+from job_bot.approvals import ApprovalService
 from job_bot.control_bot import ControlBotService, ControlRequest, RuntimeControlActions
 from job_bot.db import Database
-from job_bot.domain import Draft
+from job_bot.domain import Assessment, Draft, MatchClass
 
 ADMIN_ID = 42
+NOW = datetime(2026, 8, 16, 12, 0, tzinfo=timezone.utc)
+
+
+class FixedClock:
+    def now(self) -> datetime:
+        return NOW
 
 
 class RecordingActions:
@@ -144,5 +152,111 @@ async def test_runtime_edit_creates_user_origin_draft(tmp_path) -> None:
         result = await actions.edit("v1", "Новый текст")
         assert result == "Черновик обновлён; подтвердите отклик заново"
         assert approvals.replacements[0][1].origin == "user"
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_edit_prompt_returns_active_draft_and_starts_session(
+    tmp_path, vacancy
+) -> None:
+    db = await Database.open(tmp_path / "edit-prompt.sqlite3")
+    actions = RecordingActions()
+    try:
+        await db.insert_vacancy(vacancy)
+        await db.save_draft(
+            "draft-1",
+            vacancy.id,
+            Draft(text="Здравствуйте!", origin="template", evidence_ids=[]),
+            "hash",
+        )
+        service = ControlBotService(db, ADMIN_ID, actions)
+
+        response = await service.dispatch(
+            ControlRequest(
+                user_id=ADMIN_ID,
+                callback_data=f"edit_prompt:{vacancy.id}",
+            )
+        )
+
+        assert response.begin_edit_vacancy_id == vacancy.id
+        assert "Текущий черновик" in response.text
+        assert "Здравствуйте!" in response.text
+        assert response.mutated is False
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_edit_prompt_does_not_start_without_active_draft(
+    tmp_path, vacancy
+) -> None:
+    db = await Database.open(tmp_path / "missing-edit-prompt.sqlite3")
+    try:
+        await db.insert_vacancy(vacancy)
+        service = ControlBotService(db, ADMIN_ID, RecordingActions())
+
+        response = await service.dispatch(
+            ControlRequest(
+                user_id=ADMIN_ID,
+                callback_data=f"edit_prompt:{vacancy.id}",
+            )
+        )
+
+        assert response.begin_edit_vacancy_id is None
+        assert "черновик" in response.text.casefold()
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_replace_draft_returns_updated_vacancy_card(tmp_path, vacancy) -> None:
+    db = await Database.open(tmp_path / "replace-draft.sqlite3")
+    approvals = ApprovalService(db, FixedClock())
+    linked = vacancy.model_copy(
+        update={"source_post_url": "https://t.me/jobs_feed/7"}
+    )
+    try:
+        await db.insert_vacancy(linked)
+        await db.save_assessment(
+            linked.id,
+            Assessment(
+                score=80,
+                match_class=MatchClass.STRONG,
+                reasons=["Роль подходит"],
+            ),
+        )
+        await approvals.replace_draft(
+            linked.id,
+            Draft(text="Старый текст", origin="template", evidence_ids=[]),
+        )
+        actions = RuntimeControlActions(db, approvals, RecordingSafeSender())
+        service = ControlBotService(db, ADMIN_ID, actions)
+
+        response = await service.replace_draft(linked.id, "Новый текст")
+
+        assert response.mutated is True
+        assert response.card is not None
+        assert response.card.draft_text == "Новый текст"
+        assert response.card.source_post_url == "https://t.me/jobs_feed/7"
+        active = await db.get_active_draft(linked.id)
+        assert active is not None
+        assert active[1].text == "Новый текст"
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_replace_draft_rejects_text_over_3500_characters(tmp_path) -> None:
+    db = await Database.open(tmp_path / "long-draft.sqlite3")
+    actions = RecordingActions()
+    try:
+        service = ControlBotService(db, ADMIN_ID, actions)
+
+        response = await service.replace_draft("v1", "x" * 3501)
+
+        assert response.mutated is False
+        assert "3500" in response.text
+        assert actions.calls == []
     finally:
         await db.close()

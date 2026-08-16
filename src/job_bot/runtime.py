@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from contextlib import suppress
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 from aiogram import Bot, Dispatcher
 from aiogram.types import (
@@ -22,6 +24,12 @@ from job_bot.telegram_adapters import TelethonUserAdapter
 class SystemClock:
     def now(self) -> datetime:
         return datetime.now(UTC)
+
+
+@dataclass(frozen=True)
+class PendingEdit:
+    vacancy_id: str
+    expires_at: datetime
 
 
 def vacancy_keyboard(
@@ -75,12 +83,19 @@ def format_card(card: VacancyCard) -> str:
 
 class AiogramControlRuntime:
     def __init__(
-        self, token: str, admin_user_id: int, service: ControlBotService
+        self,
+        token: str,
+        admin_user_id: int,
+        service: ControlBotService,
+        *,
+        now: Callable[[], datetime] | None = None,
     ) -> None:
         self._bot = Bot(token=token)
         self._dispatcher = Dispatcher()
         self._admin_user_id = admin_user_id
         self._service = service
+        self._now = now or (lambda: datetime.now(UTC))
+        self._pending_edits: dict[int, PendingEdit] = {}
         self._task: asyncio.Task[None] | None = None
         self.polling = False
         self._dispatcher.message.register(self._on_message)
@@ -89,8 +104,56 @@ class AiogramControlRuntime:
     async def _on_message(self, message: Message) -> None:
         if message.from_user is None:
             return
+        user_id = message.from_user.id
+        text = message.text
+        if text == "/cancel":
+            if self._pending_edits.pop(user_id, None) is not None:
+                await message.answer("Редактирование отменено")
+            else:
+                await message.answer("Нет активного редактирования")
+            return
+        if text and text.startswith("/"):
+            response = await self._service.dispatch(
+                ControlRequest(user_id=user_id, text=text)
+            )
+            if response.alert:
+                await message.answer(response.alert)
+            elif response.text:
+                await message.answer(response.text)
+            return
+
+        pending = self._pending_edits.get(user_id)
+        if pending is not None:
+            if pending.expires_at <= self._now():
+                self._pending_edits.pop(user_id, None)
+                await message.answer(
+                    "Время редактирования истекло; нажмите кнопку ещё раз"
+                )
+                return
+            if not text or not text.strip():
+                await message.answer("Отправьте новый текст отклика сообщением")
+                return
+            replacement = text.strip()
+            if len(replacement) > 3500:
+                await message.answer(
+                    "Текст отклика не должен превышать 3500 символов"
+                )
+                return
+            response = await self._service.replace_draft(
+                pending.vacancy_id, replacement
+            )
+            if response.mutated:
+                self._pending_edits.pop(user_id, None)
+            if response.alert:
+                await message.answer(response.alert)
+            elif response.text:
+                await message.answer(response.text)
+            if response.card is not None:
+                await self.send_card(response.card)
+            return
+
         response = await self._service.dispatch(
-            ControlRequest(user_id=message.from_user.id, text=message.text)
+            ControlRequest(user_id=user_id, text=text)
         )
         if response.alert:
             await message.answer(response.alert)
@@ -103,6 +166,14 @@ class AiogramControlRuntime:
         response = await self._service.dispatch(
             ControlRequest(user_id=query.from_user.id, callback_data=query.data)
         )
+        if (
+            query.from_user.id == self._admin_user_id
+            and response.begin_edit_vacancy_id is not None
+        ):
+            self._pending_edits[query.from_user.id] = PendingEdit(
+                vacancy_id=response.begin_edit_vacancy_id,
+                expires_at=self._now() + timedelta(minutes=15),
+            )
         await query.answer(response.alert or "", show_alert=bool(response.alert))
         if response.text and query.message is not None:
             await query.message.answer(response.text)

@@ -1,4 +1,99 @@
-from job_bot.runtime import vacancy_keyboard
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+
+import pytest
+
+from job_bot.control_bot import ControlResponse
+from job_bot.pipeline import VacancyCard
+from job_bot.runtime import AiogramControlRuntime, vacancy_keyboard
+
+
+ADMIN_ID = 42
+NOW = datetime(2026, 8, 16, 12, 0, tzinfo=timezone.utc)
+
+
+def card(vacancy_id: str, text: str) -> VacancyCard:
+    return VacancyCard(
+        vacancy_id=vacancy_id,
+        title="Project Manager",
+        score=80,
+        match_class="strong",
+        reasons=["Роль подходит"],
+        warnings=[],
+        recruiter_username="hr_alex",
+        source_post_url="https://t.me/jobs_feed/7",
+        draft_text=text,
+        draft_origin="user",
+    )
+
+
+class MutableClock:
+    def __init__(self) -> None:
+        self.value = NOW
+
+    def now(self) -> datetime:
+        return self.value
+
+
+class RecordingService:
+    def __init__(self) -> None:
+        self.dispatched = []
+        self.replacements: list[tuple[str, str]] = []
+
+    async def dispatch(self, request):
+        self.dispatched.append(request)
+        if request.user_id != ADMIN_ID:
+            return ControlResponse(alert="Доступ запрещён")
+        if request.callback_data:
+            vacancy_id = request.callback_data.partition(":")[2]
+            return ControlResponse(
+                text="Текущий черновик: Старый текст",
+                begin_edit_vacancy_id=vacancy_id,
+            )
+        return ControlResponse(text=f"Команда: {request.text}")
+
+    async def replace_draft(self, vacancy_id: str, text: str) -> ControlResponse:
+        self.replacements.append((vacancy_id, text))
+        return ControlResponse(
+            text="Черновик обновлён",
+            mutated=True,
+            card=card(vacancy_id, text),
+        )
+
+
+class FakeMessage:
+    def __init__(self, text: str | None, user_id: int = ADMIN_ID) -> None:
+        self.from_user = SimpleNamespace(id=user_id)
+        self.text = text
+        self.answers: list[str] = []
+
+    async def answer(self, text: str) -> None:
+        self.answers.append(text)
+
+
+class FakeCallback:
+    def __init__(self, data: str, user_id: int = ADMIN_ID) -> None:
+        self.from_user = SimpleNamespace(id=user_id)
+        self.data = data
+        self.message = FakeMessage(None, user_id)
+        self.answers: list[tuple[str, bool]] = []
+
+    async def answer(self, text: str, show_alert: bool = False) -> None:
+        self.answers.append((text, show_alert))
+
+
+class RecordingRuntime(AiogramControlRuntime):
+    def __init__(self, service: RecordingService, clock: MutableClock) -> None:
+        super().__init__(
+            "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi",
+            ADMIN_ID,
+            service,
+            now=clock.now,
+        )
+        self.sent_cards: list[VacancyCard] = []
+
+    async def send_card(self, item: VacancyCard) -> None:
+        self.sent_cards.append(item)
 
 
 def test_keyboard_contains_original_post_and_edit_buttons() -> None:
@@ -25,3 +120,102 @@ def test_keyboard_omits_url_button_without_source_link() -> None:
         for row in keyboard.inline_keyboard
         for button in row
     )
+
+
+@pytest.mark.asyncio
+async def test_edit_button_routes_next_text_to_draft_replacement() -> None:
+    service = RecordingService()
+    runtime = RecordingRuntime(service, MutableClock())
+    callback = FakeCallback("edit_prompt:v1")
+
+    await runtime._on_callback(callback)
+    replacement = FakeMessage("Новый отклик")
+    await runtime._on_message(replacement)
+
+    assert service.replacements == [("v1", "Новый отклик")]
+    assert replacement.answers == ["Черновик обновлён"]
+    assert runtime.sent_cards[-1].draft_text == "Новый отклик"
+
+
+@pytest.mark.asyncio
+async def test_cancel_discards_pending_edit() -> None:
+    service = RecordingService()
+    runtime = RecordingRuntime(service, MutableClock())
+    await runtime._on_callback(FakeCallback("edit_prompt:v1"))
+
+    cancel = FakeMessage("/cancel")
+    await runtime._on_message(cancel)
+    ordinary = FakeMessage("Не менять")
+    await runtime._on_message(ordinary)
+
+    assert cancel.answers == ["Редактирование отменено"]
+    assert service.replacements == []
+    assert service.dispatched[-1].text == "Не менять"
+
+
+@pytest.mark.asyncio
+async def test_command_does_not_overwrite_pending_draft() -> None:
+    service = RecordingService()
+    runtime = RecordingRuntime(service, MutableClock())
+    await runtime._on_callback(FakeCallback("edit_prompt:v1"))
+
+    await runtime._on_message(FakeMessage("/status"))
+    await runtime._on_message(FakeMessage("Новый текст"))
+
+    assert service.replacements == [("v1", "Новый текст")]
+    assert any(request.text == "/status" for request in service.dispatched)
+
+
+@pytest.mark.asyncio
+async def test_non_text_message_keeps_pending_edit() -> None:
+    service = RecordingService()
+    runtime = RecordingRuntime(service, MutableClock())
+    await runtime._on_callback(FakeCallback("edit_prompt:v1"))
+
+    non_text = FakeMessage(None)
+    await runtime._on_message(non_text)
+    await runtime._on_message(FakeMessage("Новый текст"))
+
+    assert "текст" in non_text.answers[0].casefold()
+    assert service.replacements == [("v1", "Новый текст")]
+
+
+@pytest.mark.asyncio
+async def test_too_long_message_keeps_pending_edit() -> None:
+    service = RecordingService()
+    runtime = RecordingRuntime(service, MutableClock())
+    await runtime._on_callback(FakeCallback("edit_prompt:v1"))
+
+    too_long = FakeMessage("x" * 3501)
+    await runtime._on_message(too_long)
+    await runtime._on_message(FakeMessage("Короткий текст"))
+
+    assert "3500" in too_long.answers[0]
+    assert service.replacements == [("v1", "Короткий текст")]
+
+
+@pytest.mark.asyncio
+async def test_pending_edit_expires_after_fifteen_minutes() -> None:
+    service = RecordingService()
+    clock = MutableClock()
+    runtime = RecordingRuntime(service, clock)
+    await runtime._on_callback(FakeCallback("edit_prompt:v1"))
+    clock.value = NOW + timedelta(minutes=15, seconds=1)
+
+    expired = FakeMessage("Поздний текст")
+    await runtime._on_message(expired)
+
+    assert "истекло" in expired.answers[0].casefold()
+    assert service.replacements == []
+
+
+@pytest.mark.asyncio
+async def test_new_edit_button_replaces_previous_pending_vacancy() -> None:
+    service = RecordingService()
+    runtime = RecordingRuntime(service, MutableClock())
+    await runtime._on_callback(FakeCallback("edit_prompt:v1"))
+    await runtime._on_callback(FakeCallback("edit_prompt:v2"))
+
+    await runtime._on_message(FakeMessage("Новый текст"))
+
+    assert service.replacements == [("v2", "Новый текст")]
