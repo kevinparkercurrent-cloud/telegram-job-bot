@@ -2,6 +2,7 @@ import pytest
 from datetime import datetime, timezone
 
 from job_bot.approvals import ApprovalService
+from job_bot.channel_management import ChannelManagementService, ResolvedChannel
 from job_bot.control_bot import ControlBotService, ControlRequest, RuntimeControlActions
 from job_bot.db import Database
 from job_bot.domain import Assessment, Draft, MatchClass
@@ -32,6 +33,23 @@ class RecordingActions:
         return "Решение сохранено"
 
 
+class ChannelMembership:
+    def __init__(self) -> None:
+        self.left: list[int] = []
+
+    async def join_channel(self, reference: str) -> ResolvedChannel:
+        assert reference == "https://t.me/jobs_feed"
+        return ResolvedChannel(
+            channel_id=-1000000000123,
+            title="Jobs feed",
+            username="jobs_feed",
+            joined_now=True,
+        )
+
+    async def leave_channel(self, channel_id: int) -> None:
+        self.left.append(channel_id)
+
+
 @pytest.mark.asyncio
 async def test_non_admin_callback_is_rejected(tmp_path) -> None:
     db = await Database.open(tmp_path / "control.sqlite3")
@@ -47,16 +65,25 @@ async def test_non_admin_callback_is_rejected(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_channels_add_persists_numeric_channel_id(tmp_path) -> None:
+async def test_channels_add_accepts_public_link(tmp_path) -> None:
     db = await Database.open(tmp_path / "control.sqlite3")
+    membership = ChannelMembership()
     try:
-        service = ControlBotService(db, ADMIN_ID)
-        response = await service.dispatch(
-            ControlRequest(user_id=ADMIN_ID, text="/channels add -100123 jobs")
+        service = ControlBotService(
+            db,
+            ADMIN_ID,
+            channel_manager=ChannelManagementService(db, membership),
         )
-        assert response.text == "Канал jobs добавлен"
+        response = await service.dispatch(
+            ControlRequest(
+                user_id=ADMIN_ID,
+                text="/channels add https://t.me/jobs_feed",
+            )
+        )
+        assert "Jobs feed" in response.text
         assert response.mutated is True
-        assert await db.is_allowed_channel(-100123)
+        assert response.channel_menu is not None
+        assert await db.is_allowed_channel(-1000000000123)
     finally:
         await db.close()
 
@@ -67,10 +94,86 @@ async def test_malformed_channels_command_does_not_change_state(tmp_path) -> Non
     try:
         service = ControlBotService(db, ADMIN_ID)
         response = await service.dispatch(
-            ControlRequest(user_id=ADMIN_ID, text="/channels add not-a-number jobs")
+            ControlRequest(user_id=ADMIN_ID, text="/channels add")
         )
         assert response.mutated is False
         assert await db.list_channels() == []
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_channels_menu_paginates_ten_items(tmp_path) -> None:
+    db = await Database.open(tmp_path / "pages.sqlite3")
+    try:
+        for index in range(11):
+            await db.add_channel(-1000 - index, f"Channel {index:02}")
+        service = ControlBotService(db, ADMIN_ID)
+
+        first = await service.dispatch(
+            ControlRequest(user_id=ADMIN_ID, text="/channels")
+        )
+        second = await service.dispatch(
+            ControlRequest(user_id=ADMIN_ID, callback_data="channels:list:1")
+        )
+
+        assert first.channel_menu is not None
+        assert first.channel_menu.total == 11
+        assert first.channel_menu.pages == 2
+        assert len(first.channel_menu.items) == 10
+        assert second.channel_menu is not None
+        assert len(second.channel_menu.items) == 1
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_channels_add_callback_starts_input_flow(tmp_path) -> None:
+    db = await Database.open(tmp_path / "add-prompt.sqlite3")
+    try:
+        service = ControlBotService(db, ADMIN_ID)
+
+        response = await service.dispatch(
+            ControlRequest(user_id=ADMIN_ID, callback_data="channels:add")
+        )
+
+        assert response.begin_channel_add is True
+        assert "ссылку" in response.text.casefold()
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_channels_remove_requires_confirmation_then_leaves(tmp_path) -> None:
+    db = await Database.open(tmp_path / "remove-channel.sqlite3")
+    membership = ChannelMembership()
+    try:
+        await db.add_channel(-1000000000123, "Jobs feed", "jobs_feed")
+        service = ControlBotService(
+            db,
+            ADMIN_ID,
+            channel_manager=ChannelManagementService(db, membership),
+        )
+
+        prompt = await service.dispatch(
+            ControlRequest(
+                user_id=ADMIN_ID,
+                callback_data="channels:pick:-1000000000123:0",
+            )
+        )
+        assert prompt.remove_confirmation is not None
+        assert await db.is_allowed_channel(-1000000000123)
+
+        removed = await service.dispatch(
+            ControlRequest(
+                user_id=ADMIN_ID,
+                callback_data="channels:confirm:-1000000000123:0",
+            )
+        )
+
+        assert removed.mutated is True
+        assert not await db.is_allowed_channel(-1000000000123)
+        assert membership.left == [-1000000000123]
     finally:
         await db.close()
 

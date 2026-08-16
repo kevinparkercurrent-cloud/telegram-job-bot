@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Literal, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from job_bot.approvals import ApprovalInvalid, ApprovalService
-from job_bot.db import Database
+from job_bot.channel_management import (
+    ChannelManagementError,
+    ChannelManagementService,
+)
+from job_bot.db import CHANNEL_LIMIT, Database, StoredChannel
 from job_bot.domain import Draft
 from job_bot.pipeline import VacancyCard
 from job_bot.sender import SafeSender
@@ -19,12 +23,30 @@ class ControlRequest:
 
 
 @dataclass(frozen=True)
+class ChannelMenu:
+    items: tuple[StoredChannel, ...]
+    page: int
+    pages: int
+    total: int
+    mode: Literal["list", "remove"] = "list"
+
+
+@dataclass(frozen=True)
+class RemovalConfirmation:
+    channel: StoredChannel
+    page: int
+
+
+@dataclass(frozen=True)
 class ControlResponse:
     text: str = ""
     alert: str | None = None
     mutated: bool = False
     begin_edit_vacancy_id: str | None = None
     card: VacancyCard | None = None
+    channel_menu: ChannelMenu | None = None
+    begin_channel_add: bool = False
+    remove_confirmation: RemovalConfirmation | None = None
 
 
 class ControlActions(Protocol):
@@ -79,10 +101,12 @@ class ControlBotService:
         database: Database,
         admin_user_id: int,
         actions: ControlActions | None = None,
+        channel_manager: ChannelManagementService | None = None,
     ) -> None:
         self._database = database
         self._admin_user_id = admin_user_id
         self._actions = actions
+        self._channel_manager = channel_manager
 
     async def replace_draft(
         self, vacancy_id: str, text: str
@@ -155,6 +179,8 @@ class ControlBotService:
         )
 
     async def _callback(self, data: str) -> ControlResponse:
+        if data.startswith("channels:"):
+            return await self._channel_callback(data)
         if self._actions is None:
             return ControlResponse(text="Действие пока недоступно")
         action, separator, vacancy_id = data.partition(":")
@@ -190,36 +216,127 @@ class ControlBotService:
         return ControlResponse(text=result, mutated=True)
 
     async def _channels(self, text: str) -> ControlResponse:
-        parts = text.split(maxsplit=3)
+        parts = text.split(maxsplit=2)
         if len(parts) == 1:
-            channels = await self._database.list_channels()
-            body = "\n".join(
-                f"{channel_id} — {label}" for channel_id, label in channels
-            )
-            return ControlResponse(text=body or "Белый список пуст")
-        if len(parts) >= 3 and parts[1] == "add":
-            try:
-                channel_id = int(parts[2])
-            except ValueError:
-                return ControlResponse(text="ID канала должен быть числом")
-            if channel_id >= 0 or len(parts) != 4 or not parts[3].strip():
-                return ControlResponse(
-                    text="Формат: /channels add <negative_id> <label>"
-                )
-            label = parts[3].strip()
-            try:
-                await self._database.add_channel(channel_id, label)
-            except ValueError:
-                return ControlResponse(text="Можно добавить не более 20 каналов")
-            return ControlResponse(text=f"Канал {label} добавлен", mutated=True)
+            return await self._channel_menu(0)
+        if len(parts) == 3 and parts[1] == "add":
+            return await self.add_channel(parts[2])
         if len(parts) == 3 and parts[1] == "remove":
             try:
                 channel_id = int(parts[2])
             except ValueError:
                 return ControlResponse(text="ID канала должен быть числом")
-            await self._database.remove_channel(channel_id)
-            return ControlResponse(text="Канал удалён", mutated=True)
-        return ControlResponse(text="Формат: /channels [add|remove]")
+            return await self._remove_prompt(channel_id, 0)
+        return ControlResponse(
+            text="Формат: /channels add <ссылка> или /channels remove <ID>"
+        )
+
+    async def add_channel(self, reference: str) -> ControlResponse:
+        if self._channel_manager is None:
+            return ControlResponse(text="Добавление каналов пока недоступно")
+        try:
+            channel = await self._channel_manager.add(reference.strip())
+        except ChannelManagementError as error:
+            return ControlResponse(text=self._channel_error(error.code))
+        menu = await self._channel_menu(0)
+        return ControlResponse(
+            text=f"Канал «{channel.label}» добавлен",
+            mutated=True,
+            channel_menu=menu.channel_menu,
+        )
+
+    async def _channel_callback(self, data: str) -> ControlResponse:
+        parts = data.split(":")
+        if parts == ["channels", "add"]:
+            return ControlResponse(
+                text=(
+                    "Отправьте @username, публичную ссылку или приватную "
+                    "пригласительную ссылку. Для отмены: /cancel"
+                ),
+                begin_channel_add=True,
+            )
+        try:
+            action = parts[1]
+            if action in {"list", "remove", "cancel"} and len(parts) == 3:
+                page = int(parts[2])
+                return await self._channel_menu(
+                    page, mode="remove" if action == "remove" else "list"
+                )
+            if action == "pick" and len(parts) == 4:
+                return await self._remove_prompt(int(parts[2]), int(parts[3]))
+            if action == "confirm" and len(parts) == 4:
+                return await self._confirm_remove(int(parts[2]), int(parts[3]))
+        except (ValueError, IndexError):
+            pass
+        return ControlResponse(text="Некорректное действие с каналом")
+
+    async def _channel_menu(
+        self, page: int, *, mode: Literal["list", "remove"] = "list"
+    ) -> ControlResponse:
+        channels = await self._database.list_channels()
+        total = len(channels)
+        pages = max(1, (total + 9) // 10)
+        page = min(max(page, 0), pages - 1)
+        start = page * 10
+        menu = ChannelMenu(
+            items=tuple(channels[start : start + 10]),
+            page=page,
+            pages=pages,
+            total=total,
+            mode=mode,
+        )
+        text = (
+            f"Каналы: {total}/{CHANNEL_LIMIT}"
+            if mode == "list"
+            else "Выберите канал для удаления"
+        )
+        return ControlResponse(text=text, channel_menu=menu)
+
+    async def _remove_prompt(
+        self, channel_id: int, page: int
+    ) -> ControlResponse:
+        channel = await self._database.get_channel(channel_id)
+        if channel is None:
+            return ControlResponse(text="Канал не найден")
+        return ControlResponse(
+            text=(
+                f"Удалить канал «{channel.label}»? Отдельный аккаунт выйдет "
+                "из него. Для повторного входа в приватный канал может "
+                "понадобиться новая ссылка."
+            ),
+            remove_confirmation=RemovalConfirmation(channel=channel, page=page),
+        )
+
+    async def _confirm_remove(
+        self, channel_id: int, page: int
+    ) -> ControlResponse:
+        if self._channel_manager is None:
+            return ControlResponse(text="Удаление каналов пока недоступно")
+        try:
+            result = await self._channel_manager.remove(channel_id)
+        except ChannelManagementError as error:
+            return ControlResponse(text=self._channel_error(error.code))
+        menu = await self._channel_menu(page)
+        suffix = "" if result.left else "; мониторинг остановлен, но аккаунт не вышел"
+        return ControlResponse(
+            text=f"Канал «{result.channel.label}» удалён{suffix}",
+            mutated=True,
+            channel_menu=menu.channel_menu,
+        )
+
+    @staticmethod
+    def _channel_error(code: str) -> str:
+        messages = {
+            "invalid_reference": "Не удалось распознать ссылку на канал",
+            "invite_expired": "Пригласительная ссылка недействительна или истекла",
+            "not_broadcast": "Это не Telegram-канал",
+            "rate_limited": "Telegram временно ограничил добавление каналов; попробуйте позже",
+            "telegram_unavailable": "Telegram не разрешил выполнить действие с каналом",
+            "capacity_reached": f"Можно добавить не более {CHANNEL_LIMIT} каналов",
+            "persistence_failed": "Не удалось сохранить изменение каналов",
+            "not_found": "Канал не найден",
+        }
+        return messages.get(code, "Не удалось выполнить действие с каналом")
 
     async def _settings(self, text: str) -> ControlResponse:
         parts = text.split()
