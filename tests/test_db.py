@@ -19,14 +19,61 @@ async def test_allowlist_and_fingerprint_are_idempotent(tmp_path, vacancy) -> No
 
 
 @pytest.mark.asyncio
-async def test_allowlist_is_limited_to_twenty_channels(tmp_path) -> None:
+async def test_allowlist_is_limited_to_one_hundred_channels(tmp_path) -> None:
     db = await Database.open(tmp_path / "limit.sqlite3")
     try:
-        for index in range(20):
-            await db.add_channel(-1000 - index, f"channel-{index}")
-        with pytest.raises(ValueError, match="20"):
-            await db.add_channel(-2000, "too-many")
-        assert len(await db.list_channels()) == 20
+        for index in range(100):
+            await db.add_channel(
+                -1000 - index, f"channel-{index}", f"name{index}"
+            )
+        with pytest.raises(ValueError, match="100"):
+            await db.add_channel(-5000, "too-many")
+        await db.add_channel(-1000, "renamed", "renamed_channel")
+
+        assert len(await db.list_channels()) == 100
+        stored = await db.get_channel(-1000)
+        assert stored is not None
+        assert stored.label == "renamed"
+        assert stored.username == "renamed_channel"
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_channel_username_round_trips_and_can_be_null(tmp_path) -> None:
+    db = await Database.open(tmp_path / "username.sqlite3")
+    try:
+        await db.add_channel(-100123, "public jobs", "jobs_feed")
+        await db.add_channel(-100456, "private jobs")
+
+        channels = await db.list_channels()
+        assert [channel.username for channel in channels] == [None, "jobs_feed"]
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_open_migrates_existing_channels_table_for_username(tmp_path) -> None:
+    path = tmp_path / "legacy-channels.sqlite3"
+    connection = sqlite3.connect(path)
+    connection.execute(
+        "CREATE TABLE channels ("
+        "channel_id INTEGER PRIMARY KEY, "
+        "label TEXT NOT NULL, "
+        "created_at TEXT NOT NULL)"
+    )
+    connection.execute(
+        "INSERT INTO channels(channel_id, label, created_at) VALUES (?, ?, ?)",
+        (-100123, "legacy", "2026-08-16T00:00:00+00:00"),
+    )
+    connection.commit()
+    connection.close()
+
+    db = await Database.open(path)
+    try:
+        stored = await db.get_channel(-100123)
+        assert stored is not None
+        assert stored.username is None
     finally:
         await db.close()
 

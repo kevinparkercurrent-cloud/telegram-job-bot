@@ -23,6 +23,7 @@ INSERT OR IGNORE INTO schema_version(version) VALUES (1);
 CREATE TABLE IF NOT EXISTS channels (
     channel_id INTEGER PRIMARY KEY,
     label TEXT NOT NULL,
+    username TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -109,6 +110,16 @@ class StoredVacancy:
     status: str
 
 
+@dataclass(frozen=True)
+class StoredChannel:
+    channel_id: int
+    label: str
+    username: str | None = None
+
+
+CHANNEL_LIMIT = 100
+
+
 class Database:
     def __init__(self, connection: aiosqlite.Connection) -> None:
         self._connection = connection
@@ -123,6 +134,16 @@ class Database:
         await connection.execute("PRAGMA journal_mode=WAL")
         await connection.execute("PRAGMA busy_timeout=5000")
         await connection.executescript(SCHEMA)
+        channel_columns_cursor = await connection.execute(
+            "PRAGMA table_info(channels)"
+        )
+        channel_columns = {
+            str(row[1]) for row in await channel_columns_cursor.fetchall()
+        }
+        if "username" not in channel_columns:
+            await connection.execute(
+                "ALTER TABLE channels ADD COLUMN username TEXT"
+            )
         columns_cursor = await connection.execute("PRAGMA table_info(vacancies)")
         columns = {str(row[1]) for row in await columns_cursor.fetchall()}
         if "source_post_url" not in columns:
@@ -147,21 +168,27 @@ class Database:
             else:
                 await self._connection.commit()
 
-    async def add_channel(self, channel_id: int, label: str) -> None:
+    async def add_channel(
+        self, channel_id: int, label: str, username: str | None = None
+    ) -> None:
         async with self.transaction() as connection:
             cursor = await connection.execute(
                 "SELECT COUNT(*), MAX(channel_id = ?) FROM channels", (channel_id,)
             )
             count, already_present = await cursor.fetchone()
-            if int(count) >= 20 and not bool(already_present):
-                raise ValueError("The channel allowlist is limited to 20 entries")
+            if int(count) >= CHANNEL_LIMIT and not bool(already_present):
+                raise ValueError(
+                    f"The channel allowlist is limited to {CHANNEL_LIMIT} entries"
+                )
             await connection.execute(
                 """
-                INSERT INTO channels(channel_id, label, created_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(channel_id) DO UPDATE SET label=excluded.label
+                INSERT INTO channels(channel_id, label, username, created_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(channel_id) DO UPDATE SET
+                    label=excluded.label,
+                    username=excluded.username
                 """,
-                (channel_id, label, _utc_now()),
+                (channel_id, label, username, _utc_now()),
             )
 
     async def remove_channel(self, channel_id: int) -> None:
@@ -176,12 +203,31 @@ class Database:
         )
         return await cursor.fetchone() is not None
 
-    async def list_channels(self) -> list[tuple[int, str]]:
+    async def get_channel(self, channel_id: int) -> StoredChannel | None:
         cursor = await self._connection.execute(
-            "SELECT channel_id, label FROM channels ORDER BY label, channel_id"
+            "SELECT channel_id, label, username FROM channels WHERE channel_id = ?",
+            (channel_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return StoredChannel(
+            channel_id=int(row["channel_id"]),
+            label=str(row["label"]),
+            username=str(row["username"]) if row["username"] else None,
+        )
+
+    async def list_channels(self) -> list[StoredChannel]:
+        cursor = await self._connection.execute(
+            "SELECT channel_id, label, username "
+            "FROM channels ORDER BY label, channel_id"
         )
         return [
-            (int(row["channel_id"]), str(row["label"]))
+            StoredChannel(
+                channel_id=int(row["channel_id"]),
+                label=str(row["label"]),
+                username=str(row["username"]) if row["username"] else None,
+            )
             for row in await cursor.fetchall()
         ]
 
