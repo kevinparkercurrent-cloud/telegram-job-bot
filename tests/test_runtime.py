@@ -3,9 +3,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from job_bot.control_bot import ControlResponse
+from job_bot.control_bot import ChannelMenu, ControlResponse, RemovalConfirmation
+from job_bot.db import StoredChannel
 from job_bot.pipeline import VacancyCard
-from job_bot.runtime import AiogramControlRuntime, vacancy_keyboard
+from job_bot.runtime import (
+    AiogramControlRuntime,
+    channel_confirmation_keyboard,
+    channel_menu_keyboard,
+    vacancy_keyboard,
+)
 
 
 ADMIN_ID = 42
@@ -39,18 +45,33 @@ class RecordingService:
     def __init__(self) -> None:
         self.dispatched = []
         self.replacements: list[tuple[str, str]] = []
+        self.channel_additions: list[str] = []
 
     async def dispatch(self, request):
         self.dispatched.append(request)
         if request.user_id != ADMIN_ID:
             return ControlResponse(alert="Доступ запрещён")
         if request.callback_data:
+            if request.callback_data == "channels:add":
+                return ControlResponse(
+                    text="Отправьте ссылку",
+                    begin_channel_add=True,
+                )
             vacancy_id = request.callback_data.partition(":")[2]
             return ControlResponse(
                 text="Текущий черновик: Старый текст",
                 begin_edit_vacancy_id=vacancy_id,
             )
         return ControlResponse(text=f"Команда: {request.text}")
+
+    async def add_channel(self, reference: str) -> ControlResponse:
+        self.channel_additions.append(reference)
+        channel = StoredChannel(-100123, "Jobs", "jobs_feed")
+        return ControlResponse(
+            text="Канал добавлен",
+            mutated=True,
+            channel_menu=ChannelMenu((channel,), 0, 1, 1),
+        )
 
     async def replace_draft(self, vacancy_id: str, text: str) -> ControlResponse:
         self.replacements.append((vacancy_id, text))
@@ -66,9 +87,11 @@ class FakeMessage:
         self.from_user = SimpleNamespace(id=user_id)
         self.text = text
         self.answers: list[str] = []
+        self.markups = []
 
-    async def answer(self, text: str) -> None:
+    async def answer(self, text: str, reply_markup=None) -> None:
         self.answers.append(text)
+        self.markups.append(reply_markup)
 
 
 class FakeCallback:
@@ -120,6 +143,41 @@ def test_keyboard_omits_url_button_without_source_link() -> None:
         for row in keyboard.inline_keyboard
         for button in row
     )
+
+
+def test_channel_menu_keyboard_contains_add_remove_and_navigation() -> None:
+    menu = ChannelMenu(
+        items=(StoredChannel(-100123, "Jobs", "jobs_feed"),),
+        page=1,
+        pages=3,
+        total=21,
+    )
+
+    keyboard = channel_menu_keyboard(menu)
+    buttons = [button for row in keyboard.inline_keyboard for button in row]
+
+    assert any(button.callback_data == "channels:add" for button in buttons)
+    assert any(button.callback_data == "channels:remove:1" for button in buttons)
+    assert any(button.callback_data == "channels:list:0" for button in buttons)
+    assert any(button.callback_data == "channels:list:2" for button in buttons)
+
+
+def test_channel_remove_menu_selects_channel_and_confirmation_is_explicit() -> None:
+    channel = StoredChannel(-100123, "Jobs", None)
+    menu = ChannelMenu((channel,), 0, 1, 1, mode="remove")
+
+    selection = channel_menu_keyboard(menu)
+    confirmation = channel_confirmation_keyboard(
+        RemovalConfirmation(channel=channel, page=0)
+    )
+
+    assert selection.inline_keyboard[0][0].callback_data == "channels:pick:-100123:0"
+    callbacks = {
+        button.callback_data
+        for row in confirmation.inline_keyboard
+        for button in row
+    }
+    assert callbacks == {"channels:confirm:-100123:0", "channels:cancel:0"}
 
 
 @pytest.mark.asyncio
@@ -219,3 +277,51 @@ async def test_new_edit_button_replaces_previous_pending_vacancy() -> None:
     await runtime._on_message(FakeMessage("Новый текст"))
 
     assert service.replacements == [("v2", "Новый текст")]
+
+
+@pytest.mark.asyncio
+async def test_channel_add_button_routes_next_text_to_channel_service() -> None:
+    service = RecordingService()
+    runtime = RecordingRuntime(service, MutableClock())
+
+    await runtime._on_callback(FakeCallback("channels:add"))
+    message = FakeMessage("https://t.me/jobs_feed")
+    await runtime._on_message(message)
+
+    assert service.channel_additions == ["https://t.me/jobs_feed"]
+    assert message.answers[0].startswith("Канал добавлен")
+    assert message.markups[0] is not None
+
+
+@pytest.mark.asyncio
+async def test_channel_add_can_be_cancelled_and_expires() -> None:
+    service = RecordingService()
+    clock = MutableClock()
+    runtime = RecordingRuntime(service, clock)
+    await runtime._on_callback(FakeCallback("channels:add"))
+
+    await runtime._on_message(FakeMessage("/status"))
+    clock.value = NOW + timedelta(minutes=15, seconds=1)
+    expired = FakeMessage("@jobs_feed")
+    await runtime._on_message(expired)
+
+    assert service.channel_additions == []
+    assert "истекло" in expired.answers[0].casefold()
+
+    await runtime._on_callback(FakeCallback("channels:add"))
+    cancelled = FakeMessage("/cancel")
+    await runtime._on_message(cancelled)
+    assert "отмен" in cancelled.answers[0].casefold()
+
+
+@pytest.mark.asyncio
+async def test_channel_add_and_vacancy_edit_states_are_mutually_exclusive() -> None:
+    service = RecordingService()
+    runtime = RecordingRuntime(service, MutableClock())
+
+    await runtime._on_callback(FakeCallback("edit_prompt:v1"))
+    await runtime._on_callback(FakeCallback("channels:add"))
+    await runtime._on_message(FakeMessage("@jobs_feed"))
+
+    assert service.replacements == []
+    assert service.channel_additions == ["@jobs_feed"]

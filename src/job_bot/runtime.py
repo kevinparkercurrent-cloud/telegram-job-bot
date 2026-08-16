@@ -15,7 +15,13 @@ from aiogram.types import (
 )
 
 from job_bot.collector import Collector
-from job_bot.control_bot import ControlBotService, ControlRequest
+from job_bot.control_bot import (
+    ChannelMenu,
+    ControlBotService,
+    ControlRequest,
+    ControlResponse,
+    RemovalConfirmation,
+)
 from job_bot.pipeline import VacancyCard
 from job_bot.scheduler import DigestItem, Scheduler
 from job_bot.telegram_adapters import TelethonUserAdapter
@@ -30,6 +36,97 @@ class SystemClock:
 class PendingEdit:
     vacancy_id: str
     expires_at: datetime
+
+
+@dataclass(frozen=True)
+class PendingChannelAdd:
+    expires_at: datetime
+
+
+def channel_menu_keyboard(menu: ChannelMenu) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if menu.mode == "remove":
+        for channel in menu.items:
+            rows.append(
+                [
+                    InlineKeyboardButton(
+                        text=channel.label[:50],
+                        callback_data=(
+                            f"channels:pick:{channel.channel_id}:{menu.page}"
+                        ),
+                    )
+                ]
+            )
+    if menu.pages > 1:
+        navigation: list[InlineKeyboardButton] = []
+        action = "remove" if menu.mode == "remove" else "list"
+        if menu.page > 0:
+            navigation.append(
+                InlineKeyboardButton(
+                    text="←",
+                    callback_data=f"channels:{action}:{menu.page - 1}",
+                )
+            )
+        navigation.append(
+            InlineKeyboardButton(
+                text=f"{menu.page + 1}/{menu.pages}",
+                callback_data=f"channels:{action}:{menu.page}",
+            )
+        )
+        if menu.page + 1 < menu.pages:
+            navigation.append(
+                InlineKeyboardButton(
+                    text="→",
+                    callback_data=f"channels:{action}:{menu.page + 1}",
+                )
+            )
+        rows.append(navigation)
+    if menu.mode == "remove":
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="Назад", callback_data=f"channels:list:{menu.page}"
+                )
+            ]
+        )
+    else:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="Добавить канал", callback_data="channels:add"
+                )
+            ]
+        )
+        if menu.total:
+            rows.append(
+                [
+                    InlineKeyboardButton(
+                        text="Удалить канал",
+                        callback_data=f"channels:remove:{menu.page}",
+                    )
+                ]
+            )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def channel_confirmation_keyboard(
+    confirmation: RemovalConfirmation,
+) -> InlineKeyboardMarkup:
+    channel_id = confirmation.channel.channel_id
+    page = confirmation.page
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Удалить",
+                    callback_data=f"channels:confirm:{channel_id}:{page}",
+                ),
+                InlineKeyboardButton(
+                    text="Отмена", callback_data=f"channels:cancel:{page}"
+                ),
+            ]
+        ]
+    )
 
 
 def vacancy_keyboard(
@@ -96,6 +193,7 @@ class AiogramControlRuntime:
         self._service = service
         self._now = now or (lambda: datetime.now(UTC))
         self._pending_edits: dict[int, PendingEdit] = {}
+        self._pending_channel_adds: dict[int, PendingChannelAdd] = {}
         self._task: asyncio.Task[None] | None = None
         self.polling = False
         self._dispatcher.message.register(self._on_message)
@@ -107,8 +205,12 @@ class AiogramControlRuntime:
         user_id = message.from_user.id
         text = message.text
         if text == "/cancel":
-            if self._pending_edits.pop(user_id, None) is not None:
+            edit = self._pending_edits.pop(user_id, None)
+            channel = self._pending_channel_adds.pop(user_id, None)
+            if edit is not None:
                 await message.answer("Редактирование отменено")
+            elif channel is not None:
+                await message.answer("Добавление канала отменено")
             else:
                 await message.answer("Нет активного редактирования")
             return
@@ -116,10 +218,24 @@ class AiogramControlRuntime:
             response = await self._service.dispatch(
                 ControlRequest(user_id=user_id, text=text)
             )
-            if response.alert:
-                await message.answer(response.alert)
-            elif response.text:
-                await message.answer(response.text)
+            await self._answer_message(message, response)
+            return
+
+        pending_channel = self._pending_channel_adds.get(user_id)
+        if pending_channel is not None:
+            if pending_channel.expires_at <= self._now():
+                self._pending_channel_adds.pop(user_id, None)
+                await message.answer(
+                    "Время добавления канала истекло; нажмите кнопку ещё раз"
+                )
+                return
+            if not text or not text.strip():
+                await message.answer("Отправьте ссылку на канал текстом")
+                return
+            response = await self._service.add_channel(text.strip())
+            if response.mutated:
+                self._pending_channel_adds.pop(user_id, None)
+            await self._answer_message(message, response)
             return
 
         pending = self._pending_edits.get(user_id)
@@ -144,10 +260,7 @@ class AiogramControlRuntime:
             )
             if response.mutated:
                 self._pending_edits.pop(user_id, None)
-            if response.alert:
-                await message.answer(response.alert)
-            elif response.text:
-                await message.answer(response.text)
+            await self._answer_message(message, response)
             if response.card is not None:
                 await self.send_card(response.card)
             return
@@ -155,10 +268,7 @@ class AiogramControlRuntime:
         response = await self._service.dispatch(
             ControlRequest(user_id=user_id, text=text)
         )
-        if response.alert:
-            await message.answer(response.alert)
-        elif response.text:
-            await message.answer(response.text)
+        await self._answer_message(message, response)
 
     async def _on_callback(self, query: CallbackQuery) -> None:
         if query.from_user is None:
@@ -170,13 +280,46 @@ class AiogramControlRuntime:
             query.from_user.id == self._admin_user_id
             and response.begin_edit_vacancy_id is not None
         ):
+            self._pending_channel_adds.pop(query.from_user.id, None)
             self._pending_edits[query.from_user.id] = PendingEdit(
                 vacancy_id=response.begin_edit_vacancy_id,
                 expires_at=self._now() + timedelta(minutes=15),
             )
+        if (
+            query.from_user.id == self._admin_user_id
+            and response.begin_channel_add
+        ):
+            self._pending_edits.pop(query.from_user.id, None)
+            self._pending_channel_adds[query.from_user.id] = PendingChannelAdd(
+                expires_at=self._now() + timedelta(minutes=15)
+            )
         await query.answer(response.alert or "", show_alert=bool(response.alert))
         if response.text and query.message is not None:
-            await query.message.answer(response.text)
+            await self._answer_message(query.message, response)
+
+    async def _answer_message(
+        self, message: Message, response: ControlResponse
+    ) -> None:
+        text = response.alert or response.text
+        if not text:
+            return
+        markup = None
+        if response.channel_menu is not None:
+            text = self._format_channel_menu(text, response.channel_menu)
+            markup = channel_menu_keyboard(response.channel_menu)
+        elif response.remove_confirmation is not None:
+            markup = channel_confirmation_keyboard(response.remove_confirmation)
+        await message.answer(text, reply_markup=markup)
+
+    @staticmethod
+    def _format_channel_menu(text: str, menu: ChannelMenu) -> str:
+        if menu.mode == "remove" or not menu.items:
+            return text
+        lines = []
+        for channel in menu.items:
+            reference = f"@{channel.username}" if channel.username else "приватный"
+            lines.append(f"• {channel.label} — {reference}")
+        return f"{text}\n\n" + "\n".join(lines)
 
     async def send_card(self, card: VacancyCard) -> None:
         await self._bot.send_message(
