@@ -8,6 +8,7 @@ import httpx
 from openai import AsyncOpenAI
 
 from job_bot.approvals import ApprovalService
+from job_bot.channel_management import ChannelManagementService
 from job_bot.collector import Collector
 from job_bot.config import Settings, load_candidate_profile
 from job_bot.control_bot import ControlBotService, RuntimeControlActions
@@ -100,7 +101,13 @@ async def build_application(settings: Settings) -> JobBotApplication:
         daily_limit=settings.daily_send_limit,
     )
     actions = RuntimeControlActions(database, approvals, sender)
-    control_service = ControlBotService(database, settings.admin_telegram_id, actions)
+    channel_manager = ChannelManagementService(database, telegram)
+    control_service = ControlBotService(
+        database,
+        settings.admin_telegram_id,
+        actions,
+        channel_manager=channel_manager,
+    )
     control_bot = AiogramControlRuntime(
         settings.control_bot_token, settings.admin_telegram_id, control_service
     )

@@ -16,6 +16,9 @@ async def inspect_database(path: Path) -> dict[str, object]:
             channel_row = await (
                 await connection.execute("SELECT COUNT(*) FROM channels")
             ).fetchone()
+            channel_columns = await (
+                await connection.execute("PRAGMA table_info(channels)")
+            ).fetchall()
             queue_row = await (
                 await connection.execute(
                     "SELECT COUNT(*) FROM vacancies WHERE status = 'queued'"
@@ -36,6 +39,9 @@ async def inspect_database(path: Path) -> dict[str, object]:
         "database_ok": version is not None,
         "schema_version": version,
         "channel_count": int(channel_row[0]),
+        "channels_username_column": int(
+            any(str(column[1]) == "username" for column in channel_columns)
+        ),
         "queue_count": int(queue_row[0]),
         "last_collection_at": collection_row[0],
         "last_digest_slot": digest_row[0] if digest_row else None,

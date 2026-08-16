@@ -15,5 +15,6 @@ async def test_smoke_inspection_accepts_initialized_database(tmp_path) -> None:
     assert result["database_ok"] is True
     assert result["schema_version"] == 1
     assert result["channel_count"] == 0
+    assert result["channels_username_column"] == 1
     assert result["queue_count"] == 0
     assert "last_digest_slot" in result

@@ -77,4 +77,10 @@ async def test_application_factory_wires_without_network(
     )
 
     application = await build_application(settings)
-    await application.stop()
+    try:
+        telegram = application._collector._telegram
+        channel_manager = application._control_bot._service._channel_manager
+        assert channel_manager is not None
+        assert channel_manager._membership is telegram
+    finally:
+        await application.stop()
