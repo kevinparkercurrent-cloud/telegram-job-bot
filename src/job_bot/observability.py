@@ -11,6 +11,11 @@ from job_bot.db import Database
 
 
 REDACTION_PATTERNS = (
+    re.compile(
+        r"https?://(?:www\.)?t\.me/(?:\+|joinchat/)[A-Za-z0-9_-]+",
+        re.IGNORECASE,
+    ),
+    re.compile(r"ImportChatInviteRequest\(hash=(?:'[^']*'|\"[^\"]*\")\)"),
     re.compile(r"\b\d{6,}:[A-Za-z0-9_-]{8,}\b"),
     re.compile(r"\bsk-[A-Za-z0-9_-]+\b"),
     re.compile(r"\+[1-9]\d{9,14}\b"),

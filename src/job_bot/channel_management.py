@@ -44,13 +44,20 @@ class RemovalResult:
     left: bool
 
 
+@dataclass(frozen=True)
+class AddResult:
+    channel: StoredChannel
+    already_present: bool
+
+
 class ChannelManagementService:
     def __init__(self, database: Database, membership: ChannelMembership) -> None:
         self._database = database
         self._membership = membership
 
-    async def add(self, reference: str) -> StoredChannel:
+    async def add(self, reference: str) -> AddResult:
         resolved = await self._membership.join_channel(reference)
+        existing = await self._database.get_channel(resolved.channel_id)
         try:
             await self._database.add_channel(
                 resolved.channel_id, resolved.title, resolved.username
@@ -65,7 +72,7 @@ class ChannelManagementService:
         if stored is None:
             await self._rollback_join(resolved)
             raise ChannelManagementError("persistence_failed")
-        return stored
+        return AddResult(channel=stored, already_present=existing is not None)
 
     async def remove(self, channel_id: int) -> RemovalResult:
         stored = await self._database.get_channel(channel_id)

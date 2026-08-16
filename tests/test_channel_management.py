@@ -90,11 +90,28 @@ async def test_add_joins_then_persists_resolved_channel(tmp_path) -> None:
             "https://t.me/jobs_feed"
         )
 
-        assert stored.channel_id == -1000000000123
-        assert stored.label == "Jobs"
-        assert stored.username == "jobs_feed"
+        assert stored.channel.channel_id == -1000000000123
+        assert stored.channel.label == "Jobs"
+        assert stored.channel.username == "jobs_feed"
+        assert stored.already_present is False
         assert membership.joined_references == ["https://t.me/jobs_feed"]
-        assert await db.is_allowed_channel(stored.channel_id)
+        assert await db.is_allowed_channel(stored.channel.channel_id)
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_duplicate_addition_reports_existing_channel(tmp_path) -> None:
+    db = await Database.open(tmp_path / "duplicate.sqlite3")
+    membership = RecordingMembership(joined_now=False)
+    try:
+        service = ChannelManagementService(db, membership)
+        first = await service.add("@jobs_feed")
+        second = await service.add("@jobs_feed")
+
+        assert first.already_present is False
+        assert second.already_present is True
+        assert len(await db.list_channels()) == 1
     finally:
         await db.close()
 

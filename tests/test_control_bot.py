@@ -89,6 +89,30 @@ async def test_channels_add_accepts_public_link(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_channels_duplicate_addition_is_reported(tmp_path) -> None:
+    db = await Database.open(tmp_path / "duplicate-control.sqlite3")
+    membership = ChannelMembership()
+    try:
+        service = ControlBotService(
+            db,
+            ADMIN_ID,
+            channel_manager=ChannelManagementService(db, membership),
+        )
+        request = ControlRequest(
+            user_id=ADMIN_ID,
+            text="/channels add https://t.me/jobs_feed",
+        )
+
+        await service.dispatch(request)
+        duplicate = await service.dispatch(request)
+
+        assert "уже" in duplicate.text.casefold()
+        assert len(await db.list_channels()) == 1
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
 async def test_malformed_channels_command_does_not_change_state(tmp_path) -> None:
     db = await Database.open(tmp_path / "control.sqlite3")
     try:
@@ -123,6 +147,34 @@ async def test_channels_menu_paginates_ten_items(tmp_path) -> None:
         assert len(first.channel_menu.items) == 10
         assert second.channel_menu is not None
         assert len(second.channel_menu.items) == 1
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("count", "pages", "last_page_items"),
+    ((0, 1, 0), (10, 1, 10), (100, 10, 10)),
+)
+async def test_channels_menu_pagination_boundaries(
+    tmp_path, count: int, pages: int, last_page_items: int
+) -> None:
+    db = await Database.open(tmp_path / f"boundary-{count}.sqlite3")
+    try:
+        for index in range(count):
+            await db.add_channel(-1000 - index, f"Channel {index:03}")
+        service = ControlBotService(db, ADMIN_ID)
+
+        response = await service.dispatch(
+            ControlRequest(
+                user_id=ADMIN_ID,
+                callback_data=f"channels:list:{pages - 1}",
+            )
+        )
+
+        assert response.channel_menu is not None
+        assert response.channel_menu.pages == pages
+        assert len(response.channel_menu.items) == last_page_items
     finally:
         await db.close()
 

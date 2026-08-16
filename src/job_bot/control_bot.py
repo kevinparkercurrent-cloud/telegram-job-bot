@@ -235,12 +235,17 @@ class ControlBotService:
         if self._channel_manager is None:
             return ControlResponse(text="Добавление каналов пока недоступно")
         try:
-            channel = await self._channel_manager.add(reference.strip())
+            result = await self._channel_manager.add(reference.strip())
         except ChannelManagementError as error:
             return ControlResponse(text=self._channel_error(error.code))
         menu = await self._channel_menu(0)
+        message = (
+            f"Канал «{result.channel.label}» уже был в списке; данные обновлены"
+            if result.already_present
+            else f"Канал «{result.channel.label}» добавлен"
+        )
         return ControlResponse(
-            text=f"Канал «{channel.label}» добавлен",
+            text=message,
             mutated=True,
             channel_menu=menu.channel_menu,
         )
@@ -331,6 +336,10 @@ class ControlBotService:
             "invite_expired": "Пригласительная ссылка недействительна или истекла",
             "not_broadcast": "Это не Telegram-канал",
             "rate_limited": "Telegram временно ограничил добавление каналов; попробуйте позже",
+            "join_request_required": (
+                "Канал принимает заявки на вступление; автоматическое "
+                "добавление недоступно"
+            ),
             "telegram_unavailable": "Telegram не разрешил выполнить действие с каналом",
             "capacity_reached": f"Можно добавить не более {CHANNEL_LIMIT} каналов",
             "persistence_failed": "Не удалось сохранить изменение каналов",

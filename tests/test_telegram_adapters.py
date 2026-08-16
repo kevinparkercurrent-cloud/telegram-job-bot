@@ -6,17 +6,29 @@ from types import SimpleNamespace
 import pytest
 from telethon.tl.functions.channels import JoinChannelRequest, LeaveChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
+from telethon.tl.functions.messages import CheckChatInviteRequest
+from telethon.tl.types import ChatInvite, ChatInviteAlready, ChatPhotoEmpty
 
 from job_bot.channel_management import ChannelManagementError
 
 
 class FakeTelegramClient:
-    def __init__(self, entity) -> None:
+    def __init__(self, entity, *, invite_preview=None) -> None:
         self.entity = entity
+        self.invite_preview = invite_preview
         self.requests = []
 
     async def __call__(self, request):
         self.requests.append(request)
+        if isinstance(request, CheckChatInviteRequest):
+            return self.invite_preview or ChatInvite(
+                title="Private jobs",
+                photo=ChatPhotoEmpty(),
+                participants_count=0,
+                color=0,
+                channel=True,
+                broadcast=True,
+            )
         if isinstance(request, ImportChatInviteRequest):
             return SimpleNamespace(chats=[self.entity])
         return SimpleNamespace(chats=[])
@@ -101,11 +113,91 @@ async def test_join_private_broadcast_channel() -> None:
 
     assert resolved.channel_id == -1000000000456
     assert resolved.username is None
-    assert isinstance(client.requests[0], ImportChatInviteRequest)
+    assert isinstance(client.requests[0], CheckChatInviteRequest)
+    assert isinstance(client.requests[1], ImportChatInviteRequest)
 
 
 @pytest.mark.asyncio
-async def test_join_rejects_a_group_and_leaves_it() -> None:
+async def test_private_basic_group_is_rejected_before_joining() -> None:
+    preview = ChatInvite(
+        title="Private group",
+        photo=ChatPhotoEmpty(),
+        participants_count=0,
+        color=0,
+        channel=False,
+        broadcast=False,
+        megagroup=False,
+    )
+    client = FakeTelegramClient(None, invite_preview=preview)
+
+    with pytest.raises(ChannelManagementError, match="not_broadcast"):
+        await adapter_with(client).join_channel("https://t.me/+private_secret")
+
+    assert [type(request) for request in client.requests] == [CheckChatInviteRequest]
+
+
+@pytest.mark.asyncio
+async def test_private_join_request_is_rejected_before_requesting_access() -> None:
+    preview = ChatInvite(
+        title="Approval channel",
+        photo=ChatPhotoEmpty(),
+        participants_count=0,
+        color=0,
+        channel=True,
+        broadcast=True,
+        request_needed=True,
+    )
+    client = FakeTelegramClient(None, invite_preview=preview)
+
+    with pytest.raises(ChannelManagementError, match="join_request_required"):
+        await adapter_with(client).join_channel("https://t.me/+private_secret")
+
+    assert [type(request) for request in client.requests] == [CheckChatInviteRequest]
+
+
+@pytest.mark.asyncio
+async def test_public_join_request_is_rejected_before_requesting_access() -> None:
+    client = FakeTelegramClient(
+        SimpleNamespace(
+            id=456,
+            title="Approval channel",
+            username="approval_jobs",
+            broadcast=True,
+            megagroup=False,
+            join_request=True,
+            left=True,
+        )
+    )
+
+    with pytest.raises(ChannelManagementError, match="join_request_required"):
+        await adapter_with(client).join_channel("@approval_jobs")
+
+    assert client.requests == []
+
+
+@pytest.mark.asyncio
+async def test_already_joined_private_channel_is_resolved_without_import() -> None:
+    entity = SimpleNamespace(
+        id=456,
+        title="Private jobs",
+        username=None,
+        broadcast=True,
+        megagroup=False,
+    )
+    client = FakeTelegramClient(
+        entity, invite_preview=ChatInviteAlready(chat=entity)
+    )
+
+    resolved = await adapter_with(client).join_channel(
+        "https://t.me/+private_secret"
+    )
+
+    assert resolved.joined_now is False
+    assert [type(request) for request in client.requests] == [CheckChatInviteRequest]
+
+
+@pytest.mark.asyncio
+async def test_join_rejects_a_public_group_before_joining() -> None:
     client = FakeTelegramClient(
         SimpleNamespace(
             id=789,
@@ -119,7 +211,7 @@ async def test_join_rejects_a_group_and_leaves_it() -> None:
     with pytest.raises(ChannelManagementError, match="not_broadcast"):
         await adapter_with(client).join_channel("@group_name")
 
-    assert any(isinstance(request, LeaveChannelRequest) for request in client.requests)
+    assert client.requests == []
 
 
 @pytest.mark.asyncio

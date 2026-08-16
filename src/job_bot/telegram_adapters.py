@@ -9,7 +9,10 @@ from telethon.errors import (
     FloodWaitError,
     InviteHashExpiredError,
     InviteHashInvalidError,
+    InviteRequestSentError,
     UserAlreadyParticipantError,
+    UsernameInvalidError,
+    UsernameNotOccupiedError,
 )
 from telethon.events.newmessage import NewMessage
 from telethon.tl.functions.channels import JoinChannelRequest, LeaveChannelRequest
@@ -110,26 +113,42 @@ class TelethonUserAdapter:
         joined_now = False
         try:
             if parsed.kind == "public":
-                try:
-                    await self._client(JoinChannelRequest(parsed.value))
-                    joined_now = True
-                except UserAlreadyParticipantError:
-                    pass
                 entity = await self._client.get_entity(parsed.value)
+                if not _is_broadcast_channel(entity):
+                    raise ChannelManagementError("not_broadcast")
+                if (
+                    getattr(entity, "join_request", False)
+                    and getattr(entity, "left", None) is not False
+                ):
+                    raise ChannelManagementError("join_request_required")
+                if getattr(entity, "left", None) is not False:
+                    try:
+                        await self._client(JoinChannelRequest(parsed.value))
+                        joined_now = True
+                    except UserAlreadyParticipantError:
+                        pass
             else:
-                try:
+                preview = await self._client(
+                    CheckChatInviteRequest(parsed.value)
+                )
+                if hasattr(preview, "chat"):
+                    entity = preview.chat
+                else:
+                    if not _is_broadcast_invite(preview):
+                        raise ChannelManagementError("not_broadcast")
+                    if getattr(preview, "request_needed", False):
+                        raise ChannelManagementError("join_request_required")
                     updates = await self._client(
                         ImportChatInviteRequest(parsed.value)
                     )
                     joined_now = True
                     entity = updates.chats[0]
-                except UserAlreadyParticipantError:
-                    invite = await self._client(
-                        CheckChatInviteRequest(parsed.value)
-                    )
-                    entity = invite.chat
         except (InviteHashExpiredError, InviteHashInvalidError):
             raise ChannelManagementError("invite_expired") from None
+        except (UsernameInvalidError, UsernameNotOccupiedError):
+            raise ChannelManagementError("invalid_reference") from None
+        except InviteRequestSentError:
+            raise ChannelManagementError("join_request_required") from None
         except FloodWaitError:
             raise ChannelManagementError("rate_limited") from None
         except ChannelPrivateError:
@@ -176,6 +195,14 @@ def _is_broadcast_channel(entity: object) -> bool:
         and hasattr(entity, "title")
         and getattr(entity, "broadcast", False) is True
         and getattr(entity, "megagroup", False) is False
+    )
+
+
+def _is_broadcast_invite(invite: object) -> bool:
+    return (
+        getattr(invite, "channel", False) is True
+        and getattr(invite, "broadcast", False) is True
+        and getattr(invite, "megagroup", False) is not True
     )
 
 

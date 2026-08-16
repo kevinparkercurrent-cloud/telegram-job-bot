@@ -33,6 +33,22 @@ def test_log_filter_redacts_credentials_and_contacts(caplog) -> None:
     assert "[REDACTED]" in caplog.text
 
 
+def test_log_filter_redacts_private_telegram_invites(caplog) -> None:
+    logger = logging.getLogger("job-bot-invite-redaction-test")
+    logger.addFilter(RedactingFilter())
+    with caplog.at_level(logging.INFO, logger=logger.name):
+        logger.info(
+            "links=https://t.me/+private_secret "
+            "https://t.me/joinchat/legacy_secret "
+            "request=ImportChatInviteRequest(hash='request_secret')"
+        )
+
+    assert "private_secret" not in caplog.text
+    assert "legacy_secret" not in caplog.text
+    assert "request_secret" not in caplog.text
+    assert caplog.text.count("[REDACTED]") == 3
+
+
 @pytest.mark.asyncio
 async def test_revoked_session_marks_sending_unhealthy(tmp_path) -> None:
     db = await Database.open(tmp_path / "health.sqlite3")
