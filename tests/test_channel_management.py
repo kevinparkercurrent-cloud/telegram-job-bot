@@ -155,28 +155,46 @@ async def test_add_does_not_leave_existing_membership_on_persistence_failure(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("failure_call", (1, 2))
-async def test_add_rolls_back_when_channel_read_fails(
-    tmp_path, failure_call: int
-) -> None:
-    db = await Database.open(tmp_path / f"read-failure-{failure_call}.sqlite3")
+async def test_add_rolls_back_when_existing_channel_read_fails(tmp_path) -> None:
+    db = await Database.open(tmp_path / "read-failure.sqlite3")
     membership = RecordingMembership(joined_now=True)
-    original_get = db.get_channel
-    calls = 0
 
-    async def fail_selected_read(channel_id: int):
-        nonlocal calls
-        calls += 1
-        if calls == failure_call:
-            raise RuntimeError("database unavailable")
-        return await original_get(channel_id)
+    async def fail_read(channel_id: int):
+        raise RuntimeError("database unavailable")
 
-    db.get_channel = fail_selected_read
+    db.get_channel = fail_read
     try:
         with pytest.raises(ChannelManagementError, match="persistence_failed"):
             await ChannelManagementService(db, membership).add("@jobs_feed")
 
         assert membership.left_channel_ids == [-1000000000123]
+        assert not await db.is_allowed_channel(-1000000000123)
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_add_does_not_reread_after_committed_insert(tmp_path) -> None:
+    db = await Database.open(tmp_path / "no-post-insert-read.sqlite3")
+    membership = RecordingMembership(joined_now=True)
+    original_get = db.get_channel
+    calls = 0
+
+    async def fail_second_read(channel_id: int):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise RuntimeError("database unavailable")
+        return await original_get(channel_id)
+
+    db.get_channel = fail_second_read
+    try:
+        result = await ChannelManagementService(db, membership).add("@jobs_feed")
+
+        assert result.channel.channel_id == -1000000000123
+        assert calls == 1
+        assert await db.is_allowed_channel(-1000000000123)
+        assert membership.left_channel_ids == []
     finally:
         await db.close()
 

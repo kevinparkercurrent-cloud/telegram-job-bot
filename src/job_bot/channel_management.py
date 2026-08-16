@@ -72,14 +72,11 @@ class ChannelManagementService:
         except Exception:
             await self._rollback_join(resolved)
             raise ChannelManagementError("persistence_failed") from None
-        try:
-            stored = await self._database.get_channel(resolved.channel_id)
-        except Exception:
-            await self._rollback_join(resolved)
-            raise ChannelManagementError("persistence_failed") from None
-        if stored is None:
-            await self._rollback_join(resolved)
-            raise ChannelManagementError("persistence_failed")
+        stored = StoredChannel(
+            channel_id=resolved.channel_id,
+            label=resolved.title,
+            username=resolved.username,
+        )
         return AddResult(channel=stored, already_present=existing is not None)
 
     async def remove(self, channel_id: int) -> RemovalResult:
