@@ -13,13 +13,29 @@ from job_bot.sender import ResolvedUser
 PostHandler = Callable[[ChannelPost], Awaitable[object]]
 
 
-def telethon_event_to_post(event: NewMessage.Event) -> ChannelPost:
+def telegram_post_url(
+    chat_id: int, message_id: int, username: str | None
+) -> str | None:
+    if username:
+        return f"https://t.me/{username.lstrip('@')}/{message_id}"
+    value = str(chat_id)
+    if value.startswith("-100") and len(value) > 4:
+        return f"https://t.me/c/{value[4:]}/{message_id}"
+    return None
+
+
+def telethon_event_to_post(
+    event: NewMessage.Event, *, username: str | None = None
+) -> ChannelPost:
     message = event.message
     return ChannelPost(
         channel_id=int(event.chat_id),
         message_id=int(message.id),
         published_at=message.date,
         text=message.raw_text or "",
+        source_post_url=telegram_post_url(
+            int(event.chat_id), int(message.id), username
+        ),
     )
 
 
@@ -41,7 +57,12 @@ class TelethonUserAdapter:
         async def receive(event: NewMessage.Event) -> None:
             if not event.is_channel:
                 return
-            await on_post(telethon_event_to_post(event))
+            chat = await event.get_chat()
+            await on_post(
+                telethon_event_to_post(
+                    event, username=getattr(chat, "username", None)
+                )
+            )
 
         self._handler = receive
         self._client.add_event_handler(receive, events.NewMessage(incoming=True))

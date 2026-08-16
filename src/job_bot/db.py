@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS vacancies (
     fingerprint TEXT NOT NULL UNIQUE,
     payload_json TEXT NOT NULL,
     raw_text TEXT NOT NULL,
+    source_post_url TEXT,
     status TEXT NOT NULL,
     notified_at TEXT,
     created_at TEXT NOT NULL,
@@ -122,6 +123,12 @@ class Database:
         await connection.execute("PRAGMA journal_mode=WAL")
         await connection.execute("PRAGMA busy_timeout=5000")
         await connection.executescript(SCHEMA)
+        columns_cursor = await connection.execute("PRAGMA table_info(vacancies)")
+        columns = {str(row[1]) for row in await columns_cursor.fetchall()}
+        if "source_post_url" not in columns:
+            await connection.execute(
+                "ALTER TABLE vacancies ADD COLUMN source_post_url TEXT"
+            )
         await connection.commit()
         return cls(connection)
 
@@ -179,13 +186,15 @@ class Database:
         ]
 
     async def insert_vacancy(self, vacancy: Vacancy) -> bool:
-        payload = vacancy.model_dump(mode="json", exclude={"raw_text"})
+        payload = vacancy.model_dump(
+            mode="json", exclude={"raw_text", "source_post_url"}
+        )
         cursor = await self._connection.execute(
             """
             INSERT OR IGNORE INTO vacancies(
                 id, channel_id, message_id, published_at, fingerprint,
-                payload_json, raw_text, status, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                payload_json, raw_text, source_post_url, status, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 vacancy.id,
@@ -195,6 +204,7 @@ class Database:
                 vacancy.fingerprint,
                 json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
                 vacancy.raw_text,
+                str(vacancy.source_post_url) if vacancy.source_post_url else None,
                 VacancyStatus.NEW.value,
                 _utc_now(),
             ),
@@ -204,7 +214,10 @@ class Database:
 
     async def get_vacancy(self, vacancy_id: str) -> StoredVacancy | None:
         cursor = await self._connection.execute(
-            "SELECT payload_json, raw_text, status FROM vacancies WHERE id = ?",
+            """
+            SELECT payload_json, raw_text, source_post_url, status
+            FROM vacancies WHERE id = ?
+            """,
             (vacancy_id,),
         )
         row = await cursor.fetchone()
@@ -212,6 +225,7 @@ class Database:
             return None
         payload = json.loads(row["payload_json"])
         payload["raw_text"] = row["raw_text"]
+        payload["source_post_url"] = row["source_post_url"]
         return StoredVacancy(
             vacancy=Vacancy.model_validate(payload),
             status=str(row["status"]),
@@ -305,6 +319,7 @@ class Database:
         cursor = await self._connection.execute(
             """
             SELECT v.id, v.payload_json AS vacancy_json, v.raw_text,
+                   v.source_post_url,
                    a.payload_json AS assessment_json,
                    d.payload_json AS draft_json
             FROM vacancies v
@@ -349,7 +364,7 @@ class Database:
         placeholders = ",".join("?" for _ in statuses)
         cursor = await self._connection.execute(
             f"""
-            SELECT payload_json, raw_text, status FROM vacancies
+            SELECT payload_json, raw_text, source_post_url, status FROM vacancies
             WHERE status IN ({placeholders})
             ORDER BY published_at DESC LIMIT ?
             """,
@@ -359,6 +374,7 @@ class Database:
         for row in await cursor.fetchall():
             payload = json.loads(row["payload_json"])
             payload["raw_text"] = row["raw_text"]
+            payload["source_post_url"] = row["source_post_url"]
             results.append(
                 StoredVacancy(
                     vacancy=Vacancy.model_validate(payload), status=str(row["status"])

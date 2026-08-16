@@ -14,6 +14,7 @@ class ChannelPost:
     message_id: int
     published_at: datetime
     text: str
+    source_post_url: str | None = None
 
 
 class CollectionResult(StrEnum):
@@ -37,4 +38,3 @@ class Collector:
             return CollectionResult.IGNORED
         accepted = await self._pipeline.process_post(post)
         return CollectionResult.PROCESSED if accepted else CollectionResult.DUPLICATE
-

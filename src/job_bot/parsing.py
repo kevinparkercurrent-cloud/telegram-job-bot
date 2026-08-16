@@ -82,6 +82,8 @@ async def parse_vacancy(
     published_at: datetime,
     text: str,
     rates: ExchangeRates,
+    *,
+    source_post_url: str | None = None,
 ) -> Vacancy:
     urls = _external_urls(text)
     salary_present, salary_min_rub, warnings = await _salary(text, rates)
@@ -130,6 +132,7 @@ async def parse_vacancy(
         locations=list(dict.fromkeys(locations)),
         english_required=english_match.group(1).upper() if english_match else None,
         recruiter_username=username_match.group(1) if username_match else None,
+        source_post_url=source_post_url,
         external_urls=urls,
         extraction_warnings=warnings,
     )

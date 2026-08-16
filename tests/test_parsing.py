@@ -42,8 +42,21 @@ async def test_extracts_contact_and_external_url() -> None:
     assert [str(url) for url in vacancy.external_urls] == ["https://jobs.example/v/7"]
 
 
+@pytest.mark.asyncio
+async def test_preserves_original_telegram_post_url() -> None:
+    vacancy = await parse_vacancy(
+        -1001,
+        9,
+        NOW,
+        "Project Manager, удалённо",
+        FixedRates(),
+        source_post_url="https://t.me/jobs_feed/9",
+    )
+
+    assert str(vacancy.source_post_url) == "https://t.me/jobs_feed/9"
+
+
 def test_fingerprint_ignores_whitespace_and_url_order() -> None:
     first = fingerprint("Project   Manager\nremote", ["https://b.example", "https://a.example"])
     second = fingerprint(" project manager remote ", ["https://a.example", "https://b.example"])
     assert first == second
-
