@@ -4,8 +4,26 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from telethon import TelegramClient, events
+from telethon.errors import (
+    ChannelPrivateError,
+    FloodWaitError,
+    InviteHashExpiredError,
+    InviteHashInvalidError,
+    UserAlreadyParticipantError,
+)
 from telethon.events.newmessage import NewMessage
+from telethon.tl.functions.channels import JoinChannelRequest, LeaveChannelRequest
+from telethon.tl.functions.messages import (
+    CheckChatInviteRequest,
+    ImportChatInviteRequest,
+)
+from telethon.tl.types import PeerChannel
 
+from job_bot.channel_management import (
+    ChannelManagementError,
+    ResolvedChannel,
+    parse_channel_reference,
+)
 from job_bot.collector import ChannelPost
 from job_bot.sender import ResolvedUser
 
@@ -86,3 +104,86 @@ class TelethonUserAdapter:
     async def send_private(self, username: str, text: str) -> int:
         message = await self._client.send_message(username, text)
         return int(message.id)
+
+    async def join_channel(self, reference: str) -> ResolvedChannel:
+        parsed = parse_channel_reference(reference)
+        joined_now = False
+        try:
+            if parsed.kind == "public":
+                try:
+                    await self._client(JoinChannelRequest(parsed.value))
+                    joined_now = True
+                except UserAlreadyParticipantError:
+                    pass
+                entity = await self._client.get_entity(parsed.value)
+            else:
+                try:
+                    updates = await self._client(
+                        ImportChatInviteRequest(parsed.value)
+                    )
+                    joined_now = True
+                    entity = updates.chats[0]
+                except UserAlreadyParticipantError:
+                    invite = await self._client(
+                        CheckChatInviteRequest(parsed.value)
+                    )
+                    entity = invite.chat
+        except (InviteHashExpiredError, InviteHashInvalidError):
+            raise ChannelManagementError("invite_expired") from None
+        except FloodWaitError:
+            raise ChannelManagementError("rate_limited") from None
+        except ChannelPrivateError:
+            raise ChannelManagementError("telegram_unavailable") from None
+        except ChannelManagementError:
+            raise
+        except Exception:
+            raise ChannelManagementError("telegram_unavailable") from None
+
+        if not _is_broadcast_channel(entity):
+            if joined_now:
+                await self._leave_entity_safely(entity)
+            raise ChannelManagementError("not_broadcast")
+        return ResolvedChannel(
+            channel_id=_marked_channel_id(int(entity.id)),
+            title=str(entity.title),
+            username=(
+                str(entity.username) if getattr(entity, "username", None) else None
+            ),
+            joined_now=joined_now,
+        )
+
+    async def leave_channel(self, channel_id: int) -> None:
+        real_id, peer_type = _resolve_marked_channel_id(channel_id)
+        if peer_type is not PeerChannel:
+            raise ChannelManagementError("not_broadcast")
+        try:
+            await self._client(LeaveChannelRequest(PeerChannel(real_id)))
+        except FloodWaitError:
+            raise ChannelManagementError("rate_limited") from None
+        except Exception:
+            raise ChannelManagementError("telegram_unavailable") from None
+
+    async def _leave_entity_safely(self, entity: object) -> None:
+        try:
+            await self._client(LeaveChannelRequest(entity))
+        except Exception:
+            pass
+
+
+def _is_broadcast_channel(entity: object) -> bool:
+    return (
+        hasattr(entity, "id")
+        and hasattr(entity, "title")
+        and getattr(entity, "broadcast", False) is True
+        and getattr(entity, "megagroup", False) is False
+    )
+
+
+def _marked_channel_id(channel_id: int) -> int:
+    return -(1_000_000_000_000 + channel_id)
+
+
+def _resolve_marked_channel_id(channel_id: int) -> tuple[int, type]:
+    if channel_id <= -1_000_000_000_000:
+        return -channel_id - 1_000_000_000_000, PeerChannel
+    return channel_id, object
