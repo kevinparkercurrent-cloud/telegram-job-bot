@@ -18,6 +18,7 @@ class DigestItem(BaseModel):
     reasons: list[str]
     warnings: list[str]
     draft_text: str
+    source_post_url: str | None = None
 
 
 class DigestNotifier(Protocol):
@@ -52,6 +53,7 @@ class Scheduler:
         for row in rows:
             vacancy_payload = json.loads(str(row["vacancy_json"]))
             vacancy_payload["raw_text"] = str(row["raw_text"])
+            vacancy_payload["source_post_url"] = row["source_post_url"]
             vacancy = Vacancy.model_validate(vacancy_payload)
             assessment = Assessment.model_validate_json(str(row["assessment_json"]))
             draft = Draft.model_validate_json(str(row["draft_json"]))
@@ -63,6 +65,11 @@ class Scheduler:
                     reasons=assessment.reasons,
                     warnings=assessment.warnings,
                     draft_text=draft.text,
+                    source_post_url=(
+                        str(vacancy.source_post_url)
+                        if vacancy.source_post_url
+                        else None
+                    ),
                 )
             )
         if items:

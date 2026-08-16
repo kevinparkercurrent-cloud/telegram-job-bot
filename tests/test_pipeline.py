@@ -30,12 +30,17 @@ class RecordingNotifier:
         self.cards.append(card)
 
 
-def make_post(text: str, message_id: int = 1) -> ChannelPost:
+def make_post(
+    text: str,
+    message_id: int = 1,
+    source_post_url: str | None = None,
+) -> ChannelPost:
     return ChannelPost(
         channel_id=-100123,
         message_id=message_id,
         published_at=datetime(2026, 8, 14, tzinfo=timezone.utc),
         text=text,
+        source_post_url=source_post_url,
     )
 
 
@@ -94,3 +99,18 @@ async def test_same_post_is_not_processed_twice(tmp_path) -> None:
     finally:
         await db.close()
 
+
+@pytest.mark.asyncio
+async def test_strong_card_links_to_original_telegram_post(tmp_path) -> None:
+    db, notifier, pipeline = await build_pipeline(tmp_path)
+    try:
+        await pipeline.process_post(
+            make_post(
+                "Technical Project Manager mobile web delivery QA API remote",
+                source_post_url="https://t.me/jobs_feed/7",
+            )
+        )
+
+        assert notifier.cards[0].source_post_url == "https://t.me/jobs_feed/7"
+    finally:
+        await db.close()

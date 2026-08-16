@@ -24,7 +24,7 @@ class VacancyCard(BaseModel):
     reasons: list[str]
     warnings: list[str]
     recruiter_username: str | None
-    source_url: str | None
+    source_post_url: str | None
     draft_text: str
     draft_origin: str
 
@@ -67,6 +67,7 @@ class VacancyPipeline:
             post.published_at,
             post.text,
             self._rates,
+            source_post_url=post.source_post_url,
         )
         if not await self.db.insert_vacancy(vacancy):
             return False
@@ -93,7 +94,11 @@ class VacancyPipeline:
                     reasons=assessment.reasons,
                     warnings=assessment.warnings,
                     recruiter_username=vacancy.recruiter_username,
-                    source_url=str(vacancy.external_urls[0]) if vacancy.external_urls else None,
+                    source_post_url=(
+                        str(vacancy.source_post_url)
+                        if vacancy.source_post_url
+                        else None
+                    ),
                     draft_text=draft.text,
                     draft_origin=draft.origin,
                 )

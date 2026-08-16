@@ -24,9 +24,26 @@ class SystemClock:
         return datetime.now(UTC)
 
 
-def vacancy_keyboard(vacancy_id: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
+def vacancy_keyboard(
+    vacancy_id: str, source_post_url: str | None
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if source_post_url:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text="Открыть вакансию", url=source_post_url
+                )
+            ]
+        )
+    rows.extend(
+        [
+            [
+                InlineKeyboardButton(
+                    text="Редактировать отклик",
+                    callback_data=f"edit_prompt:{vacancy_id}",
+                )
+            ],
             [
                 InlineKeyboardButton(
                     text="Откликнуться", callback_data=f"approve:{vacancy_id}"
@@ -42,6 +59,7 @@ def vacancy_keyboard(vacancy_id: str) -> InlineKeyboardMarkup:
             ],
         ]
     )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def format_card(card: VacancyCard) -> str:
@@ -93,7 +111,9 @@ class AiogramControlRuntime:
         await self._bot.send_message(
             self._admin_user_id,
             format_card(card),
-            reply_markup=vacancy_keyboard(card.vacancy_id),
+            reply_markup=vacancy_keyboard(
+                card.vacancy_id, card.source_post_url
+            ),
         )
 
     async def send_digest(self, items: list[DigestItem]) -> None:
@@ -110,7 +130,7 @@ class AiogramControlRuntime:
                 reasons=item.reasons,
                 warnings=item.warnings,
                 recruiter_username=None,
-                source_url=None,
+                source_post_url=item.source_post_url,
                 draft_text=item.draft_text,
                 draft_origin="stored",
             )
