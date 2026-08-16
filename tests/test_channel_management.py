@@ -155,6 +155,33 @@ async def test_add_does_not_leave_existing_membership_on_persistence_failure(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("failure_call", (1, 2))
+async def test_add_rolls_back_when_channel_read_fails(
+    tmp_path, failure_call: int
+) -> None:
+    db = await Database.open(tmp_path / f"read-failure-{failure_call}.sqlite3")
+    membership = RecordingMembership(joined_now=True)
+    original_get = db.get_channel
+    calls = 0
+
+    async def fail_selected_read(channel_id: int):
+        nonlocal calls
+        calls += 1
+        if calls == failure_call:
+            raise RuntimeError("database unavailable")
+        return await original_get(channel_id)
+
+    db.get_channel = fail_selected_read
+    try:
+        with pytest.raises(ChannelManagementError, match="persistence_failed"):
+            await ChannelManagementService(db, membership).add("@jobs_feed")
+
+        assert membership.left_channel_ids == [-1000000000123]
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
 async def test_remove_stops_monitoring_before_best_effort_leave(tmp_path) -> None:
     db = await Database.open(tmp_path / "remove.sqlite3")
     membership = RecordingMembership(leave_fails=True)

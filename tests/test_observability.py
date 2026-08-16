@@ -40,13 +40,17 @@ def test_log_filter_redacts_private_telegram_invites(caplog) -> None:
         logger.info(
             "links=https://t.me/+private_secret "
             "https://t.me/joinchat/legacy_secret "
+            "t.me/+schemeless_secret "
+            "t.me/joinchat/schemeless_legacy "
             "request=ImportChatInviteRequest(hash='request_secret')"
         )
 
     assert "private_secret" not in caplog.text
     assert "legacy_secret" not in caplog.text
     assert "request_secret" not in caplog.text
-    assert caplog.text.count("[REDACTED]") == 3
+    assert "schemeless_secret" not in caplog.text
+    assert "schemeless_legacy" not in caplog.text
+    assert caplog.text.count("[REDACTED]") == 5
 
 
 @pytest.mark.asyncio

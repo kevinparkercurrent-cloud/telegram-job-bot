@@ -20,7 +20,7 @@ from telethon.tl.functions.messages import (
     CheckChatInviteRequest,
     ImportChatInviteRequest,
 )
-from telethon.tl.types import PeerChannel
+from telethon.tl.types import ChatInviteAlready, ChatInvitePeek, PeerChannel
 
 from job_bot.channel_management import (
     ChannelManagementError,
@@ -131,10 +131,14 @@ class TelethonUserAdapter:
                 preview = await self._client(
                     CheckChatInviteRequest(parsed.value)
                 )
-                if hasattr(preview, "chat"):
+                if isinstance(preview, ChatInviteAlready):
                     entity = preview.chat
                 else:
-                    if not _is_broadcast_invite(preview):
+                    if isinstance(preview, ChatInvitePeek):
+                        is_broadcast = _is_broadcast_channel(preview.chat)
+                    else:
+                        is_broadcast = _is_broadcast_invite(preview)
+                    if not is_broadcast:
                         raise ChannelManagementError("not_broadcast")
                     if getattr(preview, "request_needed", False):
                         raise ChannelManagementError("join_request_required")

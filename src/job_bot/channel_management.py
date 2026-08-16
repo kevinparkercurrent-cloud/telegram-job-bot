@@ -57,7 +57,11 @@ class ChannelManagementService:
 
     async def add(self, reference: str) -> AddResult:
         resolved = await self._membership.join_channel(reference)
-        existing = await self._database.get_channel(resolved.channel_id)
+        try:
+            existing = await self._database.get_channel(resolved.channel_id)
+        except Exception:
+            await self._rollback_join(resolved)
+            raise ChannelManagementError("persistence_failed") from None
         try:
             await self._database.add_channel(
                 resolved.channel_id, resolved.title, resolved.username
@@ -68,7 +72,11 @@ class ChannelManagementService:
         except Exception:
             await self._rollback_join(resolved)
             raise ChannelManagementError("persistence_failed") from None
-        stored = await self._database.get_channel(resolved.channel_id)
+        try:
+            stored = await self._database.get_channel(resolved.channel_id)
+        except Exception:
+            await self._rollback_join(resolved)
+            raise ChannelManagementError("persistence_failed") from None
         if stored is None:
             await self._rollback_join(resolved)
             raise ChannelManagementError("persistence_failed")

@@ -1,13 +1,18 @@
 from pathlib import Path
 from job_bot import telegram_adapters
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
 from telethon.tl.functions.channels import JoinChannelRequest, LeaveChannelRequest
 from telethon.tl.functions.messages import ImportChatInviteRequest
 from telethon.tl.functions.messages import CheckChatInviteRequest
-from telethon.tl.types import ChatInvite, ChatInviteAlready, ChatPhotoEmpty
+from telethon.tl.types import (
+    ChatInvite,
+    ChatInviteAlready,
+    ChatInvitePeek,
+    ChatPhotoEmpty,
+)
 
 from job_bot.channel_management import ChannelManagementError
 
@@ -194,6 +199,32 @@ async def test_already_joined_private_channel_is_resolved_without_import() -> No
 
     assert resolved.joined_now is False
     assert [type(request) for request in client.requests] == [CheckChatInviteRequest]
+
+
+@pytest.mark.asyncio
+async def test_private_peek_is_imported_before_persistence() -> None:
+    entity = SimpleNamespace(
+        id=456,
+        title="Private jobs",
+        username=None,
+        broadcast=True,
+        megagroup=False,
+    )
+    preview = ChatInvitePeek(
+        chat=entity,
+        expires=datetime.now(timezone.utc) + timedelta(minutes=5),
+    )
+    client = FakeTelegramClient(entity, invite_preview=preview)
+
+    resolved = await adapter_with(client).join_channel(
+        "https://t.me/+private_secret"
+    )
+
+    assert resolved.joined_now is True
+    assert [type(request) for request in client.requests] == [
+        CheckChatInviteRequest,
+        ImportChatInviteRequest,
+    ]
 
 
 @pytest.mark.asyncio
