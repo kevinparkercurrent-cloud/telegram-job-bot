@@ -96,6 +96,7 @@ async def build_application(settings: Settings) -> JobBotApplication:
         approvals,
         telegram,
         clock,
+        resume_pdf_path=settings.resume_pdf_path,
         timezone_name=settings.app_timezone,
         hourly_limit=settings.hourly_send_limit,
         daily_limit=settings.daily_send_limit,

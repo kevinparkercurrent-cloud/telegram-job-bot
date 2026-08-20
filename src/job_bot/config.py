@@ -100,6 +100,7 @@ class Settings(BaseSettings):
     external_source_domains: tuple[str, ...] = ()
     candidate_profile_path: Path = Path("config/candidate-profile.full.json")
     database_path: Path = Path("data/job-bot.sqlite3")
+    resume_pdf_path: Path = Path("/data/resume.pdf")
     app_timezone: str = "Europe/Moscow"
     digest_times: tuple[str, str] = ("12:00", "19:00")
     strong_threshold: int = 75

@@ -50,6 +50,29 @@ def test_template_uses_only_profile_evidence(vacancy) -> None:
     assert all(evidence_id in profile.fact_ids for evidence_id in draft.evidence_ids)
 
 
+def test_template_uses_approved_response_text(vacancy) -> None:
+    profile = load_candidate_profile(Path("config/candidate-profile.full.json"))
+    assessment = Assessment(
+        score=80,
+        match_class=MatchClass.STRONG,
+        reasons=["Целевая роль"],
+    )
+    vacancy = vacancy.model_copy(update={"title": "Senior Project Manager"})
+
+    draft = TemplateDrafter().create(vacancy, assessment, profile)
+
+    assert draft.text == (
+        "Здравствуйте! Меня заинтересовала вакансия «Senior Project Manager». "
+        "Я Project Manager с опытом более 4 лет в запуске мобильных и "
+        "веб-продуктов, управлении командой и полном цикле delivery. "
+        "Технически самостоятелен: понимаю базовые принципы веб и мобильной "
+        "разработки, работу API, баз данных и серверной инфраструктуры, "
+        "поэтому могу эффективно взаимодействовать с разработчиками. Буду "
+        "рад подробнее обсудить задачи и ожидания от роли. Резюме прикрепляю."
+    )
+    assert "&#x20;" not in draft.text
+
+
 @pytest.mark.asyncio
 async def test_ai_receives_external_text_not_telegram_text(vacancy) -> None:
     profile = load_candidate_profile(Path("config/candidate-profile.full.json"))

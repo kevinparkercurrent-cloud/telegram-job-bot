@@ -10,7 +10,7 @@ from job_bot.channel_management import (
     ChannelManagementService,
 )
 from job_bot.db import CHANNEL_LIMIT, Database, StoredChannel
-from job_bot.domain import Draft
+from job_bot.domain import MAX_DRAFT_LENGTH, Draft
 from job_bot.pipeline import VacancyCard
 from job_bot.sender import SafeSender
 
@@ -80,6 +80,10 @@ class RuntimeControlActions:
             "rate_limited": "Лимит отправок исчерпан; отклик не отправлен",
             "invalid_recipient": "Контакт рекрутера не является личным Telegram-аккаунтом",
             "unknown": "Статус отправки неизвестен; автоматического повтора не будет",
+            "attachment_missing": "PDF-файл резюме недоступен; отклик не отправлен",
+            "draft_too_long": (
+                f"Текст длиннее {MAX_DRAFT_LENGTH} символов; сократите черновик"
+            ),
         }
         return labels.get(result.status, f"Отклик не отправлен: {result.status}")
 
@@ -113,9 +117,12 @@ class ControlBotService:
     ) -> ControlResponse:
         if self._actions is None:
             return ControlResponse(text="Редактирование пока недоступно")
-        if len(text) > 3500:
+        if len(text) > MAX_DRAFT_LENGTH:
             return ControlResponse(
-                text="Текст отклика не должен превышать 3500 символов"
+                text=(
+                    f"Текст отклика не должен превышать "
+                    f"{MAX_DRAFT_LENGTH} символов"
+                )
             )
         result = await self._actions.edit(vacancy_id, text)
         return ControlResponse(

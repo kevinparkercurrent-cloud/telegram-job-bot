@@ -4,6 +4,11 @@ from pathlib import Path
 
 import aiosqlite
 
+from job_bot.attachments import is_pdf_file
+
+
+inspect_resume_pdf = is_pdf_file
+
 
 async def inspect_database(path: Path) -> dict[str, object]:
     if not path.is_file():

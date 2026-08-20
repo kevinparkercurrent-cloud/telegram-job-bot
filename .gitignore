@@ -4,6 +4,8 @@
 *.sqlite3*
 /data/
 /backups/
+/output/
+/.artifacts/
 .venv/
 .pytest_cache/
 __pycache__/

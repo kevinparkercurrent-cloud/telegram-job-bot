@@ -33,6 +33,7 @@ def test_settings_loads_safe_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.strong_threshold == 75
     assert settings.borderline_threshold == 50
     assert settings.digest_times == ("12:00", "19:00")
+    assert settings.resume_pdf_path == Path("/data/resume.pdf")
 
 
 def test_external_source_domains_are_explicit_allowlist() -> None:

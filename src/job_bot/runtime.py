@@ -22,6 +22,7 @@ from job_bot.control_bot import (
     ControlResponse,
     RemovalConfirmation,
 )
+from job_bot.domain import MAX_DRAFT_LENGTH
 from job_bot.pipeline import VacancyCard
 from job_bot.scheduler import DigestItem, Scheduler
 from job_bot.telegram_adapters import TelethonUserAdapter
@@ -250,9 +251,9 @@ class AiogramControlRuntime:
                 await message.answer("Отправьте новый текст отклика сообщением")
                 return
             replacement = text.strip()
-            if len(replacement) > 3500:
+            if len(replacement) > MAX_DRAFT_LENGTH:
                 await message.answer(
-                    "Текст отклика не должен превышать 3500 символов"
+                    f"Текст отклика не должен превышать {MAX_DRAFT_LENGTH} символов"
                 )
                 return
             response = await self._service.replace_draft(

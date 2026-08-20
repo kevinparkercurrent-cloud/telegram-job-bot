@@ -22,6 +22,7 @@ class FakeTelegramClient:
         self.entity = entity
         self.invite_preview = invite_preview
         self.requests = []
+        self.sent_files = []
 
     async def __call__(self, request):
         self.requests.append(request)
@@ -40,6 +41,10 @@ class FakeTelegramClient:
 
     async def get_entity(self, reference):
         return self.entity
+
+    async def send_file(self, entity, file, *, caption, force_document):
+        self.sent_files.append((entity, file, caption, force_document))
+        return SimpleNamespace(id=777)
 
 
 def adapter_with(client: FakeTelegramClient) -> telegram_adapters.TelethonUserAdapter:
@@ -252,3 +257,19 @@ async def test_leave_channel_uses_stored_id() -> None:
     await adapter_with(client).leave_channel(-1000000000123)
 
     assert isinstance(client.requests[0], LeaveChannelRequest)
+
+
+@pytest.mark.asyncio
+async def test_send_private_with_document_uses_pdf_as_captioned_file(tmp_path) -> None:
+    client = FakeTelegramClient(None)
+    path = tmp_path / "resume.pdf"
+    path.write_bytes(b"%PDF-1.7")
+
+    message_id = await adapter_with(client).send_private_with_document(
+        "hr_alex", "Здравствуйте!", path
+    )
+
+    assert message_id == 777
+    assert client.sent_files == [
+        ("hr_alex", str(path), "Здравствуйте!", True)
+    ]

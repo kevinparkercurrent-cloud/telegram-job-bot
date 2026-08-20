@@ -108,6 +108,17 @@ class TelethonUserAdapter:
         message = await self._client.send_message(username, text)
         return int(message.id)
 
+    async def send_private_with_document(
+        self, username: str, text: str, document_path: Path
+    ) -> int:
+        message = await self._client.send_file(
+            username,
+            str(document_path),
+            caption=text,
+            force_document=True,
+        )
+        return int(message.id)
+
     async def join_channel(self, reference: str) -> ResolvedChannel:
         parsed = parse_channel_reference(reference)
         joined_now = False

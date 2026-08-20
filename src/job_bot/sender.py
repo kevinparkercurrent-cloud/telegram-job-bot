@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Protocol
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
 
 from job_bot.approvals import ApprovalInvalid, ApprovalService, Clock
+from job_bot.attachments import is_pdf_file
 from job_bot.db import Database
+from job_bot.domain import MAX_DRAFT_LENGTH
 
 
 USERNAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{4,31}$")
@@ -24,7 +27,9 @@ class TelegramSender(Protocol):
     async def resolve_user(self, username: str) -> ResolvedUser:
         raise NotImplementedError
 
-    async def send_private(self, username: str, text: str) -> int:
+    async def send_private_with_document(
+        self, username: str, text: str, document_path: Path
+    ) -> int:
         raise NotImplementedError
 
 
@@ -48,6 +53,7 @@ class SafeSender:
         telegram: TelegramSender,
         clock: Clock,
         *,
+        resume_pdf_path: Path,
         timezone_name: str = "Europe/Moscow",
         hourly_limit: int = 5,
         daily_limit: int = 15,
@@ -56,6 +62,7 @@ class SafeSender:
         self._approvals = approvals
         self._telegram = telegram
         self._clock = clock
+        self._resume_pdf_path = resume_pdf_path
         self._timezone = ZoneInfo(timezone_name)
         self._hourly_limit = hourly_limit
         self._daily_limit = daily_limit
@@ -85,6 +92,10 @@ class SafeSender:
             return SendResult(status="invalid_recipient")
         if resolved.is_bot:
             return SendResult(status="invalid_recipient")
+        if not is_pdf_file(self._resume_pdf_path):
+            return SendResult(status="attachment_missing")
+        if len(approved.draft.text) > MAX_DRAFT_LENGTH:
+            return SendResult(status="draft_too_long")
 
         try:
             approved = await self._approvals.consume_for_send(approval_id)
@@ -92,8 +103,8 @@ class SafeSender:
             return SendResult(status=error.code)
 
         try:
-            message_id = await self._telegram.send_private(
-                recipient, approved.draft.text
+            message_id = await self._telegram.send_private_with_document(
+                recipient, approved.draft.text, self._resume_pdf_path
             )
         except TimeoutError:
             await self._database.mark_send_unknown(

@@ -4,6 +4,9 @@ from enum import StrEnum
 from pydantic import BaseModel, Field, HttpUrl
 
 
+MAX_DRAFT_LENGTH = 1000
+
+
 class MatchClass(StrEnum):
     STRONG = "strong"
     BORDERLINE = "borderline"

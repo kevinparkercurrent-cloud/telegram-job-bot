@@ -244,11 +244,11 @@ async def test_too_long_message_keeps_pending_edit() -> None:
     runtime = RecordingRuntime(service, MutableClock())
     await runtime._on_callback(FakeCallback("edit_prompt:v1"))
 
-    too_long = FakeMessage("x" * 3501)
+    too_long = FakeMessage("x" * 1001)
     await runtime._on_message(too_long)
     await runtime._on_message(FakeMessage("Короткий текст"))
 
-    assert "3500" in too_long.answers[0]
+    assert "1000" in too_long.answers[0]
     assert service.replacements == [("v1", "Короткий текст")]
 
 

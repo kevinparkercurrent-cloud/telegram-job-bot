@@ -6,7 +6,7 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
 from job_bot.config import CandidateProfile
-from job_bot.domain import Assessment, Draft, Vacancy
+from job_bot.domain import MAX_DRAFT_LENGTH, Assessment, Draft, Vacancy
 from job_bot.sources import ExternalVacancy
 
 
@@ -18,7 +18,7 @@ class Enrichment(BaseModel):
     score_adjustment: int = Field(ge=-20, le=20)
     reasons: list[str]
     warnings: list[str]
-    draft: str = Field(min_length=1, max_length=2000)
+    draft: str = Field(min_length=1, max_length=MAX_DRAFT_LENGTH)
     evidence_ids: list[str] = Field(min_length=1)
 
 
@@ -34,7 +34,6 @@ class StructuredAI(Protocol):
 
 class TemplateDrafter:
     SUMMARY_FACT = "professional_summary.summary_ru"
-    ACHIEVEMENT_FACT = "achievements.0.statement"
 
     def create(
         self,
@@ -43,13 +42,17 @@ class TemplateDrafter:
         profile: CandidateProfile,
     ) -> Draft:
         del assessment
-        evidence_ids = [self.SUMMARY_FACT, self.ACHIEVEMENT_FACT]
-        summary = profile.fact_text(self.SUMMARY_FACT)
-        achievement = profile.fact_text(self.ACHIEVEMENT_FACT)
+        evidence_ids = [self.SUMMARY_FACT]
+        profile.fact_text(self.SUMMARY_FACT)
         title = vacancy.title or "Project Manager"
         text = (
-            f"Здравствуйте! Меня заинтересовала вакансия {title}. "
-            f"{summary} {achievement} Буду рад обсудить задачи и ожидания от роли."
+            f"Здравствуйте! Меня заинтересовала вакансия «{title}». "
+            "Я Project Manager с опытом более 4 лет в запуске мобильных и "
+            "веб-продуктов, управлении командой и полном цикле delivery. "
+            "Технически самостоятелен: понимаю базовые принципы веб и мобильной "
+            "разработки, работу API, баз данных и серверной инфраструктуры, "
+            "поэтому могу эффективно взаимодействовать с разработчиками. Буду "
+            "рад подробнее обсудить задачи и ожидания от роли. Резюме прикрепляю."
         )
         return Draft(
             text=text,

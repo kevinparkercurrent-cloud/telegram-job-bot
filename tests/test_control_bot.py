@@ -402,16 +402,16 @@ async def test_replace_draft_returns_updated_vacancy_card(tmp_path, vacancy) -> 
 
 
 @pytest.mark.asyncio
-async def test_replace_draft_rejects_text_over_3500_characters(tmp_path) -> None:
+async def test_replace_draft_rejects_text_over_1000_characters(tmp_path) -> None:
     db = await Database.open(tmp_path / "long-draft.sqlite3")
     actions = RecordingActions()
     try:
         service = ControlBotService(db, ADMIN_ID, actions)
 
-        response = await service.replace_draft("v1", "x" * 3501)
+        response = await service.replace_draft("v1", "x" * 1001)
 
         assert response.mutated is False
-        assert "3500" in response.text
+        assert "1000" in response.text
         assert actions.calls == []
     finally:
         await db.close()
