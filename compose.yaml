@@ -1,0 +1,46 @@
+services:
+  job-bot:
+    build: .
+    image: telegram-job-bot:local
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - job-bot-data:/data
+      - job-bot-backups:/backups
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+      - /run/job-bot:size=1m,mode=0700
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "/app/scripts/smoke_test.py"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  backup:
+    image: telegram-job-bot:local
+    profiles: ["maintenance"]
+    env_file: .env
+    environment:
+      BACKUP_DIR: /backups
+    volumes:
+      - job-bot-data:/data:ro
+      - job-bot-backups:/backups
+    entrypoint: ["/app/scripts/backup.sh"]
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+      - /run/job-bot:size=1m,mode=0700
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  job-bot-data:
+  job-bot-backups:
