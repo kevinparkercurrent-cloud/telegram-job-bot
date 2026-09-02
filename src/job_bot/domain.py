@@ -42,6 +42,7 @@ class Vacancy(BaseModel):
     source_post_url: HttpUrl | None = None
     external_urls: list[HttpUrl] = Field(default_factory=list)
     extraction_warnings: list[str] = Field(default_factory=list)
+    summary: str | None = None
 
 
 class Assessment(BaseModel):

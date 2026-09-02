@@ -369,7 +369,10 @@ async def test_replace_draft_returns_updated_vacancy_card(tmp_path, vacancy) -> 
     db = await Database.open(tmp_path / "replace-draft.sqlite3")
     approvals = ApprovalService(db, FixedClock())
     linked = vacancy.model_copy(
-        update={"source_post_url": "https://t.me/jobs_feed/7"}
+        update={
+            "source_post_url": "https://t.me/jobs_feed/7",
+            "summary": "Запуск продукта и управление релизами.",
+        }
     )
     try:
         await db.insert_vacancy(linked)
@@ -394,6 +397,7 @@ async def test_replace_draft_returns_updated_vacancy_card(tmp_path, vacancy) -> 
         assert response.card is not None
         assert response.card.draft_text == "Новый текст"
         assert response.card.source_post_url == "https://t.me/jobs_feed/7"
+        assert response.card.summary == "Запуск продукта и управление релизами."
         active = await db.get_active_draft(linked.id)
         assert active is not None
         assert active[1].text == "Новый текст"

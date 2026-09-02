@@ -25,6 +25,7 @@ class VacancyCard(BaseModel):
     warnings: list[str]
     recruiter_username: str | None
     source_post_url: str | None
+    summary: str | None = None
     draft_text: str
     draft_origin: str
 
@@ -99,6 +100,7 @@ class VacancyPipeline:
                         if vacancy.source_post_url
                         else None
                     ),
+                    summary=vacancy.summary,
                     draft_text=draft.text,
                     draft_origin=draft.origin,
                 )

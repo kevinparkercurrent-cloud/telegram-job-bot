@@ -172,8 +172,10 @@ def format_card(card: VacancyCard) -> str:
     reasons = "\n".join(f"• {item}" for item in card.reasons) or "• нет"
     warnings = "\n".join(f"• {item}" for item in card.warnings) or "• нет"
     contact = f"@{card.recruiter_username}" if card.recruiter_username else "не найден"
+    summary = f"\n\nКратко:\n{card.summary}" if card.summary else ""
     return (
-        f"{card.title}\nСовпадение: {card.score}/100 ({card.match_class})\n\n"
+        f"{card.title}\nСовпадение: {card.score}/100 ({card.match_class})"
+        f"{summary}\n\n"
         f"Почему подходит:\n{reasons}\n\nПредупреждения:\n{warnings}\n\n"
         f"Контакт: {contact}\nЧерновик:\n{card.draft_text}"
     )[:4096]
@@ -346,6 +348,7 @@ class AiogramControlRuntime:
                 warnings=item.warnings,
                 recruiter_username=None,
                 source_post_url=item.source_post_url,
+                summary=item.summary,
                 draft_text=item.draft_text,
                 draft_origin="stored",
             )

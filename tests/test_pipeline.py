@@ -114,3 +114,22 @@ async def test_strong_card_links_to_original_telegram_post(tmp_path) -> None:
         assert notifier.cards[0].source_post_url == "https://t.me/jobs_feed/7"
     finally:
         await db.close()
+
+
+@pytest.mark.asyncio
+async def test_strong_card_contains_short_vacancy_summary(tmp_path) -> None:
+    db, notifier, pipeline = await build_pipeline(tmp_path)
+    try:
+        await pipeline.process_post(
+            make_post(
+                "Вакансия: Technical Project Manager mobile web delivery QA API remote\n"
+                "Задачи:\n— Запускать мобильный продукт и управлять релизами.\n"
+                "Требования:\n— Опыт управления командой разработки."
+            )
+        )
+
+        assert notifier.cards
+        assert notifier.cards[0].summary is not None
+        assert "Запускать мобильный продукт" in notifier.cards[0].summary
+    finally:
+        await db.close()

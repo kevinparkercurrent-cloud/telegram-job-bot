@@ -19,6 +19,7 @@ class DigestItem(BaseModel):
     warnings: list[str]
     draft_text: str
     source_post_url: str | None = None
+    summary: str | None = None
 
 
 class DigestNotifier(Protocol):
@@ -70,6 +71,7 @@ class Scheduler:
                         if vacancy.source_post_url
                         else None
                     ),
+                    summary=vacancy.summary,
                 )
             )
         if items:

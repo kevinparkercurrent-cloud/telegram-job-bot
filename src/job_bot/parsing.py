@@ -8,6 +8,7 @@ from typing import Protocol, Sequence
 from urllib.parse import urlparse
 
 from job_bot.domain import Vacancy
+from job_bot.post_analysis import summarize_vacancy
 
 
 class ExchangeRates(Protocol):
@@ -135,4 +136,5 @@ async def parse_vacancy(
         source_post_url=source_post_url,
         external_urls=urls,
         extraction_warnings=warnings,
+        summary=summarize_vacancy(text) or None,
     )

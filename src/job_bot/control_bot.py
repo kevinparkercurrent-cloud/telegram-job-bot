@@ -152,6 +152,7 @@ class ControlBotService:
                 if vacancy.source_post_url
                 else None
             ),
+            summary=vacancy.summary,
             draft_text=draft.text,
             draft_origin=draft.origin,
         )

@@ -90,3 +90,21 @@ async def test_digest_preserves_original_telegram_post_url(tmp_path, vacancy) ->
         assert notifier.digests[0][0].source_post_url == "https://t.me/jobs_feed/7"
     finally:
         await db.close()
+
+
+@pytest.mark.asyncio
+async def test_digest_preserves_short_vacancy_summary(tmp_path, vacancy) -> None:
+    db = await Database.open(tmp_path / "scheduler-summary.sqlite3")
+    notifier = RecordingDigestNotifier()
+    scheduler = Scheduler(db, notifier, "Europe/Moscow", ("12:00", "19:00"))
+    due = datetime(2026, 8, 14, 9, 0, tzinfo=timezone.utc)
+    summarized = vacancy.model_copy(
+        update={"summary": "Запуск продукта и управление релизами."}
+    )
+    try:
+        await prepare_borderline(db, summarized)
+        await scheduler.tick(due)
+
+        assert notifier.digests[0][0].summary == summarized.summary
+    finally:
+        await db.close()

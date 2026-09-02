@@ -56,6 +56,46 @@ async def test_preserves_original_telegram_post_url() -> None:
     assert str(vacancy.source_post_url) == "https://t.me/jobs_feed/9"
 
 
+@pytest.mark.asyncio
+async def test_builds_short_local_vacancy_summary() -> None:
+    vacancy = await parse_vacancy(
+        -1001,
+        10,
+        NOW,
+        (
+            "Вакансия: Technical Project Manager\n"
+            "Задачи:\n"
+            "— Запускать мобильные продукты и управлять сроками релизов.\n"
+            "Требования:\n"
+            "— Опыт управления командой разработки от трёх лет.\n"
+            "Условия:\n"
+            "— Удалённая работа и гибкое начало дня.\n"
+            "Контакт: @hr_alex"
+        ),
+        FixedRates(),
+    )
+
+    assert vacancy.summary is not None
+    assert "Запускать мобильные продукты" in vacancy.summary
+    assert "Опыт управления командой" in vacancy.summary
+    assert "Удалённая работа" in vacancy.summary
+    assert "@hr_alex" not in vacancy.summary
+    assert len(vacancy.summary) <= 350
+
+
+@pytest.mark.asyncio
+async def test_short_vacancy_uses_its_text_as_summary() -> None:
+    vacancy = await parse_vacancy(
+        -1001,
+        11,
+        NOW,
+        "Project Manager, удалённо",
+        FixedRates(),
+    )
+
+    assert vacancy.summary == "Project Manager, удалённо"
+
+
 def test_fingerprint_ignores_whitespace_and_url_order() -> None:
     first = fingerprint("Project   Manager\nremote", ["https://b.example", "https://a.example"])
     second = fingerprint(" project manager remote ", ["https://a.example", "https://b.example"])

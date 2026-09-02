@@ -6,6 +6,7 @@ from enum import StrEnum
 from typing import Protocol
 
 from job_bot.db import Database
+from job_bot.post_analysis import is_candidate_resume
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,8 @@ class Collector:
 
     async def handle(self, post: ChannelPost) -> CollectionResult:
         if not await self._database.is_allowed_channel(post.channel_id):
+            return CollectionResult.IGNORED
+        if is_candidate_resume(post.text):
             return CollectionResult.IGNORED
         accepted = await self._pipeline.process_post(post)
         return CollectionResult.PROCESSED if accepted else CollectionResult.DUPLICATE

@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime, timezone
 
 import pytest
@@ -58,5 +59,58 @@ async def test_reports_duplicate_when_pipeline_declines_post(tmp_path) -> None:
         await db.add_channel(-1009, "jobs")
         result = await Collector(db, pipeline).handle(post())
         assert result == CollectionResult.DUPLICATE
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "text",
+    [
+        (
+            "#резюме #opentowork #projectmanager\n"
+            "Ищу: Project Manager / Delivery Manager\n"
+            "Обо мне: 4 года управляю IT-проектами."
+        ),
+        (
+            "Резюме: Project Manager / Руководитель проектов\n"
+            "Желаемая сфера работы: IT и цифровые продукты\n"
+            "Контакты: @candidate_name"
+        ),
+    ],
+)
+async def test_ignores_candidate_resumes_before_pipeline(tmp_path, text) -> None:
+    db = await Database.open(tmp_path / "collector.sqlite3")
+    pipeline = RecordingPipeline()
+    candidate_post = replace(post(), text=text)
+    try:
+        await db.add_channel(-1009, "jobs")
+
+        result = await Collector(db, pipeline).handle(candidate_post)
+
+        assert result == CollectionResult.IGNORED
+        assert pipeline.received == []
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_vacancy_that_requests_resume_is_not_filtered(tmp_path) -> None:
+    db = await Database.open(tmp_path / "collector.sqlite3")
+    pipeline = RecordingPipeline()
+    vacancy_post = replace(
+        post(),
+        text=(
+            "Вакансия: Project Manager. Мы ищем специалиста в продуктовую "
+            "команду. Требования: опыт delivery. Присылайте резюме @hr_alex"
+        )
+    )
+    try:
+        await db.add_channel(-1009, "jobs")
+
+        result = await Collector(db, pipeline).handle(vacancy_post)
+
+        assert result == CollectionResult.PROCESSED
+        assert pipeline.received == [vacancy_post]
     finally:
         await db.close()

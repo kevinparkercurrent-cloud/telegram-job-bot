@@ -10,6 +10,7 @@ from job_bot.runtime import (
     AiogramControlRuntime,
     channel_confirmation_keyboard,
     channel_menu_keyboard,
+    format_card,
     vacancy_keyboard,
 )
 
@@ -28,6 +29,7 @@ def card(vacancy_id: str, text: str) -> VacancyCard:
         warnings=[],
         recruiter_username="hr_alex",
         source_post_url="https://t.me/jobs_feed/7",
+        summary="Запуск мобильного продукта, управление командой и релизами.",
         draft_text=text,
         draft_origin="user",
     )
@@ -142,6 +144,15 @@ def test_keyboard_omits_url_button_without_source_link() -> None:
         button.url is None
         for row in keyboard.inline_keyboard
         for button in row
+    )
+
+
+def test_card_displays_short_vacancy_summary() -> None:
+    text = format_card(card("v1", "Здравствуйте!"))
+
+    assert (
+        "Кратко:\nЗапуск мобильного продукта, управление командой и релизами."
+        in text
     )
 
 
