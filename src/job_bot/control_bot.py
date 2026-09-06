@@ -172,6 +172,9 @@ class ControlBotService:
         if text == "/queue":
             rows = await self._database.list_by_statuses(("queued",))
             return ControlResponse(text=self._format_vacancies("Очередь", rows))
+        if text == "/manual":
+            rows = await self._database.list_by_statuses(("manual",))
+            return ControlResponse(text=self._format_manual_vacancies(rows))
         if text == "/history":
             rows = await self._database.list_by_statuses(
                 ("sent", "skipped", "not_relevant", "failed", "assessed")
@@ -179,11 +182,18 @@ class ControlBotService:
             return ControlResponse(text=self._format_vacancies("История", rows))
         if text == "/status":
             pending = await self._database.count_digest_pending()
+            manual = await self._database.count_manual()
             return ControlResponse(
-                text=f"База доступна. Пограничных вакансий: {pending}"
+                text=(
+                    f"База доступна. Пограничных вакансий: {pending}. "
+                    f"Для ручного отклика: {manual}"
+                )
             )
         return ControlResponse(
-            text="Команды: /channels, /settings, /queue, /history, /status, /edit"
+            text=(
+                "Команды: /channels, /settings, /queue, /manual, "
+                "/history, /status, /edit"
+            )
         )
 
     async def _callback(self, data: str) -> ControlResponse:
@@ -399,3 +409,18 @@ class ControlBotService:
                 for row in rows
             )
         )
+
+    @staticmethod
+    def _format_manual_vacancies(rows) -> str:
+        if not rows:
+            return "Ручной отклик: пусто"
+        lines = ["Ручной отклик:"]
+        for index, row in enumerate(rows, start=1):
+            title = row.vacancy.title or "без названия"
+            link = (
+                str(row.vacancy.source_post_url)
+                if row.vacancy.source_post_url
+                else "ссылка недоступна"
+            )
+            lines.append(f"{index}. {title}\n{link}")
+        return "\n\n".join(lines)

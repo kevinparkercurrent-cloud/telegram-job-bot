@@ -10,9 +10,13 @@ from job_bot.scheduler import Scheduler
 class RecordingDigestNotifier:
     def __init__(self) -> None:
         self.digests = []
+        self.manual_digests = []
 
     async def send_digest(self, items) -> None:
         self.digests.append(items)
+
+    async def send_manual_digest(self, items) -> None:
+        self.manual_digests.append(items)
 
 
 async def prepare_borderline(db: Database, vacancy) -> None:
@@ -106,5 +110,34 @@ async def test_digest_preserves_short_vacancy_summary(tmp_path, vacancy) -> None
         await scheduler.tick(due)
 
         assert notifier.digests[0][0].summary == summarized.summary
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_manual_vacancies_are_sent_as_separate_link_digest(
+    tmp_path, vacancy
+) -> None:
+    db = await Database.open(tmp_path / "scheduler-manual.sqlite3")
+    notifier = RecordingDigestNotifier()
+    scheduler = Scheduler(db, notifier, "Europe/Moscow", ("12:00", "19:00"))
+    due = datetime(2026, 8, 14, 9, 0, tzinfo=timezone.utc)
+    manual = vacancy.model_copy(
+        update={
+            "recruiter_username": None,
+            "source_post_url": "https://t.me/jobs_feed/15",
+        }
+    )
+    try:
+        await db.insert_vacancy(manual)
+        await db.set_vacancy_status(manual.id, "manual")
+
+        await scheduler.tick(due)
+
+        assert notifier.digests == []
+        assert len(notifier.manual_digests) == 1
+        assert notifier.manual_digests[0][0].source_post_url == (
+            "https://t.me/jobs_feed/15"
+        )
     finally:
         await db.close()

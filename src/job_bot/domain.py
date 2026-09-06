@@ -18,6 +18,7 @@ class VacancyStatus(StrEnum):
     NEW = "new"
     ASSESSED = "assessed"
     QUEUED = "queued"
+    MANUAL = "manual"
     SENT = "sent"
     SKIPPED = "skipped"
     NOT_RELEVANT = "not_relevant"

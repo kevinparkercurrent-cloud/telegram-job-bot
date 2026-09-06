@@ -79,13 +79,22 @@ class VacancyPipeline:
         draft_hash = hashlib.sha256(draft.text.encode("utf-8")).hexdigest()
         await self.db.save_draft(str(uuid.uuid4()), vacancy.id, draft, draft_hash)
 
-        status = (
-            VacancyStatus.QUEUED.value
-            if assessment.match_class in {MatchClass.STRONG, MatchClass.BORDERLINE}
-            else VacancyStatus.ASSESSED.value
-        )
+        is_match = assessment.match_class in {
+            MatchClass.STRONG,
+            MatchClass.BORDERLINE,
+        }
+        requires_manual_response = is_match and vacancy.recruiter_username is None
+        if requires_manual_response:
+            status = VacancyStatus.MANUAL.value
+        elif is_match:
+            status = VacancyStatus.QUEUED.value
+        else:
+            status = VacancyStatus.ASSESSED.value
         await self.db.set_vacancy_status(vacancy.id, status)
-        if assessment.match_class == MatchClass.STRONG:
+        if (
+            assessment.match_class == MatchClass.STRONG
+            and not requires_manual_response
+        ):
             await self._notifier.send_card(
                 VacancyCard(
                     vacancy_id=vacancy.id,

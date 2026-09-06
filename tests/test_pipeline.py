@@ -65,7 +65,9 @@ async def test_strong_match_notifies_immediately(tmp_path) -> None:
     db, notifier, pipeline = await build_pipeline(tmp_path)
     try:
         accepted = await pipeline.process_post(
-            make_post("Technical Project Manager mobile web delivery QA API remote")
+            make_post(
+                "Technical Project Manager mobile web delivery QA API remote @hr_alex"
+            )
         )
         assert accepted is True
         assert len(notifier.cards) == 1
@@ -80,7 +82,10 @@ async def test_borderline_match_waits_for_digest(tmp_path) -> None:
     db, notifier, pipeline = await build_pipeline(tmp_path)
     try:
         await pipeline.process_post(
-            make_post("Technical Project Manager mobile web delivery QA API remote English C1")
+            make_post(
+                "Technical Project Manager mobile web delivery QA API remote "
+                "English C1 @hr_alex"
+            )
         )
         assert notifier.cards == []
         assert await db.count_digest_pending() == 1
@@ -91,7 +96,9 @@ async def test_borderline_match_waits_for_digest(tmp_path) -> None:
 @pytest.mark.asyncio
 async def test_same_post_is_not_processed_twice(tmp_path) -> None:
     db, notifier, pipeline = await build_pipeline(tmp_path)
-    post = make_post("Technical Project Manager mobile web delivery QA API remote")
+    post = make_post(
+        "Technical Project Manager mobile web delivery QA API remote @hr_alex"
+    )
     try:
         assert await pipeline.process_post(post) is True
         assert await pipeline.process_post(post) is False
@@ -106,7 +113,7 @@ async def test_strong_card_links_to_original_telegram_post(tmp_path) -> None:
     try:
         await pipeline.process_post(
             make_post(
-                "Technical Project Manager mobile web delivery QA API remote",
+                "Technical Project Manager mobile web delivery QA API remote @hr_alex",
                 source_post_url="https://t.me/jobs_feed/7",
             )
         )
@@ -124,12 +131,34 @@ async def test_strong_card_contains_short_vacancy_summary(tmp_path) -> None:
             make_post(
                 "Вакансия: Technical Project Manager mobile web delivery QA API remote\n"
                 "Задачи:\n— Запускать мобильный продукт и управлять релизами.\n"
-                "Требования:\n— Опыт управления командой разработки."
+                "Требования:\n— Опыт управления командой разработки.\n"
+                "Контакт: @hr_alex"
             )
         )
 
         assert notifier.cards
         assert notifier.cards[0].summary is not None
         assert "Запускать мобильный продукт" in notifier.cards[0].summary
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_matching_vacancy_without_telegram_contact_goes_to_manual_queue(
+    tmp_path,
+) -> None:
+    db, notifier, pipeline = await build_pipeline(tmp_path)
+    try:
+        await pipeline.process_post(
+            make_post(
+                "Technical Project Manager mobile web delivery QA API remote",
+                source_post_url="https://t.me/jobs_feed/15",
+            )
+        )
+
+        stored = await db.get_vacancy("-100123:1")
+        assert stored is not None
+        assert stored.status == "manual"
+        assert notifier.cards == []
     finally:
         await db.close()

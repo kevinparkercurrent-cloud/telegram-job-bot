@@ -78,8 +78,8 @@ Telegram-аккаунт сам вступит в канал, а бот сраз�
 Запасной текстовый формат: `/channels add <ссылка>` и
 `/channels remove <ID>`. Удаление по команде также требует подтверждения.
 
-Другие команды: `/channels`, `/settings`, `/queue`, `/history`, `/status`,
-`/edit <vacancy_id> <текст>`, `/cancel`.
+Другие команды: `/channels`, `/settings`, `/queue`, `/manual`, `/history`,
+`/status`, `/edit <vacancy_id> <текст>`, `/cancel`.
 
 ## Развёртывание на VPS
 

@@ -419,3 +419,29 @@ async def test_replace_draft_rejects_text_over_1000_characters(tmp_path) -> None
         assert actions.calls == []
     finally:
         await db.close()
+
+
+@pytest.mark.asyncio
+async def test_manual_command_lists_vacancies_with_source_links(
+    tmp_path, vacancy
+) -> None:
+    db = await Database.open(tmp_path / "manual-command.sqlite3")
+    manual = vacancy.model_copy(
+        update={
+            "recruiter_username": None,
+            "source_post_url": "https://t.me/jobs_feed/15",
+        }
+    )
+    try:
+        await db.insert_vacancy(manual)
+        await db.set_vacancy_status(manual.id, "manual")
+        service = ControlBotService(db, ADMIN_ID, RecordingActions())
+
+        response = await service.dispatch(
+            ControlRequest(user_id=ADMIN_ID, text="/manual")
+        )
+
+        assert "Ручной отклик" in response.text
+        assert "https://t.me/jobs_feed/15" in response.text
+    finally:
+        await db.close()

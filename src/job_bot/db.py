@@ -379,6 +379,31 @@ class Database:
         )
         return [dict(row) for row in await cursor.fetchall()]
 
+    async def list_manual_pending(
+        self, limit: int = 20
+    ) -> list[dict[str, object]]:
+        cursor = await self._connection.execute(
+            """
+            SELECT payload_json AS vacancy_json, raw_text, source_post_url
+            FROM vacancies
+            WHERE status = ? AND notified_at IS NULL
+            ORDER BY published_at ASC LIMIT ?
+            """,
+            (VacancyStatus.MANUAL.value, limit),
+        )
+        return [dict(row) for row in await cursor.fetchall()]
+
+    async def count_manual(self) -> int:
+        cursor = await self._connection.execute(
+            """
+            SELECT COUNT(*) AS count FROM vacancies
+            WHERE status = ?
+            """,
+            (VacancyStatus.MANUAL.value,),
+        )
+        row = await cursor.fetchone()
+        return int(row["count"])
+
     async def mark_notified(self, vacancy_ids: list[str], when: datetime) -> None:
         if not vacancy_ids:
             return

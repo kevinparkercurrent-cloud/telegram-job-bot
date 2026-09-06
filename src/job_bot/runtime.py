@@ -24,7 +24,7 @@ from job_bot.control_bot import (
 )
 from job_bot.domain import MAX_DRAFT_LENGTH
 from job_bot.pipeline import VacancyCard
-from job_bot.scheduler import DigestItem, Scheduler
+from job_bot.scheduler import DigestItem, ManualItem, Scheduler
 from job_bot.telegram_adapters import TelethonUserAdapter
 
 
@@ -179,6 +179,16 @@ def format_card(card: VacancyCard) -> str:
         f"Почему подходит:\n{reasons}\n\nПредупреждения:\n{warnings}\n\n"
         f"Контакт: {contact}\nЧерновик:\n{card.draft_text}"
     )[:4096]
+
+
+def format_manual_digest(items: list[ManualItem]) -> str:
+    lines = [f"Ручной отклик: {len(items)}"]
+    for index, item in enumerate(items, start=1):
+        lines.append(f"{index}. {item.title}")
+        if item.summary:
+            lines.append(item.summary)
+        lines.append(item.source_post_url or "Ссылка недоступна")
+    return "\n\n".join(lines)[:4096]
 
 
 class AiogramControlRuntime:
@@ -353,6 +363,12 @@ class AiogramControlRuntime:
                 draft_origin="stored",
             )
             await self.send_card(card)
+
+    async def send_manual_digest(self, items: list[ManualItem]) -> None:
+        await self._bot.send_message(
+            self._admin_user_id,
+            format_manual_digest(items),
+        )
 
     async def start(self) -> None:
         if self._task is not None:

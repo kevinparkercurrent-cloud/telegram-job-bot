@@ -22,8 +22,18 @@ class DigestItem(BaseModel):
     summary: str | None = None
 
 
+class ManualItem(BaseModel):
+    vacancy_id: str
+    title: str
+    source_post_url: str | None = None
+    summary: str | None = None
+
+
 class DigestNotifier(Protocol):
     async def send_digest(self, items: list[DigestItem]) -> None:
+        raise NotImplementedError
+
+    async def send_manual_digest(self, items: list[ManualItem]) -> None:
         raise NotImplementedError
 
 
@@ -78,6 +88,30 @@ class Scheduler:
             await self._notifier.send_digest(items)
             await self._database.mark_notified(
                 [item.vacancy_id for item in items], now
+            )
+
+        manual_items: list[ManualItem] = []
+        for row in await self._database.list_manual_pending():
+            vacancy_payload = json.loads(str(row["vacancy_json"]))
+            vacancy_payload["raw_text"] = str(row["raw_text"])
+            vacancy_payload["source_post_url"] = row["source_post_url"]
+            vacancy = Vacancy.model_validate(vacancy_payload)
+            manual_items.append(
+                ManualItem(
+                    vacancy_id=vacancy.id,
+                    title=vacancy.title or "Вакансия без указанного названия",
+                    source_post_url=(
+                        str(vacancy.source_post_url)
+                        if vacancy.source_post_url
+                        else None
+                    ),
+                    summary=vacancy.summary,
+                )
+            )
+        if manual_items:
+            await self._notifier.send_manual_digest(manual_items)
+            await self._database.mark_notified(
+                [item.vacancy_id for item in manual_items], now
             )
         await self._database.set_setting("last_digest_slot", slot)
         return True

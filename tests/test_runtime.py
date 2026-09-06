@@ -6,11 +6,13 @@ import pytest
 from job_bot.control_bot import ChannelMenu, ControlResponse, RemovalConfirmation
 from job_bot.db import StoredChannel
 from job_bot.pipeline import VacancyCard
+from job_bot.scheduler import ManualItem
 from job_bot.runtime import (
     AiogramControlRuntime,
     channel_confirmation_keyboard,
     channel_menu_keyboard,
     format_card,
+    format_manual_digest,
     vacancy_keyboard,
 )
 
@@ -154,6 +156,24 @@ def test_card_displays_short_vacancy_summary() -> None:
         "Кратко:\nЗапуск мобильного продукта, управление командой и релизами."
         in text
     )
+
+
+def test_manual_digest_is_a_compact_list_of_source_links() -> None:
+    text = format_manual_digest(
+        [
+            ManualItem(
+                vacancy_id="v1",
+                title="Project Manager",
+                source_post_url="https://t.me/jobs_feed/15",
+                summary="Запуск продукта и управление релизами.",
+            )
+        ]
+    )
+
+    assert "Ручной отклик: 1" in text
+    assert "Project Manager" in text
+    assert "https://t.me/jobs_feed/15" in text
+    assert "Запуск продукта" in text
 
 
 def test_channel_menu_keyboard_contains_add_remove_and_navigation() -> None:
