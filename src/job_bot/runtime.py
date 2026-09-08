@@ -5,8 +5,9 @@ from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, types
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
@@ -23,6 +24,8 @@ from job_bot.control_bot import (
     RemovalConfirmation,
 )
 from job_bot.domain import MAX_DRAFT_LENGTH
+from job_bot.hr_discovery import HRContactCard
+from job_bot.attachments import is_pdf_file
 from job_bot.pipeline import VacancyCard
 from job_bot.scheduler import DigestItem, ManualItem, Scheduler
 from job_bot.telegram_adapters import TelethonUserAdapter
@@ -191,6 +194,50 @@ def format_manual_digest(items: list[ManualItem]) -> str:
     return "\n\n".join(lines)[:4096]
 
 
+def format_hr_card(card: HRContactCard) -> str:
+    company = card.company or "не указана"
+    return (
+        f"HR-контакт: {card.contact}\n"
+        f"Компания: {company}\n"
+        f"Роль вакансии: {card.role}\n"
+        "Английский: B1\n"
+        f"Почему релевантен: {card.relevance_reason}\n\n"
+        f"Готовый текст:\n{card.outreach_text}"
+    )[:4096]
+
+
+def hr_contact_keyboard(card: HRContactCard) -> InlineKeyboardMarkup:
+    username = card.contact.lstrip("@")
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Открыть HR", url=f"https://t.me/{username}"
+                ),
+                InlineKeyboardButton(
+                    text="Открыть пост", url=card.source_post_url
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Написал",
+                    callback_data=f"hr:written:{card.id}",
+                ),
+                InlineKeyboardButton(
+                    text="Не подходит",
+                    callback_data=f"hr:not_relevant:{card.id}",
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Получить резюме PDF",
+                    callback_data=f"hr:resume:{card.id}",
+                )
+            ],
+        ]
+    )
+
+
 class AiogramControlRuntime:
     def __init__(
         self,
@@ -199,12 +246,14 @@ class AiogramControlRuntime:
         service: ControlBotService,
         *,
         now: Callable[[], datetime] | None = None,
+        hr_resume_pdf_path: Path = Path("/data/resume-igaming.pdf"),
     ) -> None:
         self._bot = Bot(token=token)
         self._dispatcher = Dispatcher()
         self._admin_user_id = admin_user_id
         self._service = service
         self._now = now or (lambda: datetime.now(UTC))
+        self._hr_resume_pdf_path = hr_resume_pdf_path
         self._pending_edits: dict[int, PendingEdit] = {}
         self._pending_channel_adds: dict[int, PendingChannelAdd] = {}
         self._task: asyncio.Task[None] | None = None
@@ -309,6 +358,10 @@ class AiogramControlRuntime:
         await query.answer(response.alert or "", show_alert=bool(response.alert))
         if response.text and query.message is not None:
             await self._answer_message(query.message, response)
+        if response.send_hr_resume:
+            sent = await self.send_hr_resume()
+            if not sent and query.message is not None:
+                await query.message.answer("iGaming-резюме PDF недоступно")
 
     async def _answer_message(
         self, message: Message, response: ControlResponse
@@ -323,6 +376,11 @@ class AiogramControlRuntime:
         elif response.remove_confirmation is not None:
             markup = channel_confirmation_keyboard(response.remove_confirmation)
         await message.answer(text, reply_markup=markup)
+        for card in response.hr_cards:
+            await message.answer(
+                format_hr_card(card),
+                reply_markup=hr_contact_keyboard(card),
+            )
 
     @staticmethod
     def _format_channel_menu(text: str, menu: ChannelMenu) -> str:
@@ -369,6 +427,30 @@ class AiogramControlRuntime:
             self._admin_user_id,
             format_manual_digest(items),
         )
+
+    async def send_hr_digest(self, items: list[HRContactCard]) -> None:
+        if not items:
+            return
+        await self._bot.send_message(
+            self._admin_user_id,
+            f"Новые HR-контакты за день: {len(items)}",
+        )
+        for item in items:
+            await self._bot.send_message(
+                self._admin_user_id,
+                format_hr_card(item),
+                reply_markup=hr_contact_keyboard(item),
+            )
+
+    async def send_hr_resume(self) -> bool:
+        if not is_pdf_file(self._hr_resume_pdf_path):
+            return False
+        await self._bot.send_document(
+            self._admin_user_id,
+            types.FSInputFile(self._hr_resume_pdf_path),
+            caption="Резюме для ручного обращения к HR в iGaming",
+        )
+        return True
 
     async def start(self) -> None:
         if self._task is not None:

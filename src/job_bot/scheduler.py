@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from job_bot.db import Database
 from job_bot.domain import Assessment, Draft, Vacancy
+from job_bot.hr_discovery import HRContactCard, HR_OUTREACH_TEXT
 
 
 class DigestItem(BaseModel):
@@ -34,6 +35,9 @@ class DigestNotifier(Protocol):
         raise NotImplementedError
 
     async def send_manual_digest(self, items: list[ManualItem]) -> None:
+        raise NotImplementedError
+
+    async def send_hr_digest(self, items: list[HRContactCard]) -> None:
         raise NotImplementedError
 
 
@@ -113,8 +117,33 @@ class Scheduler:
             await self._database.mark_notified(
                 [item.vacancy_id for item in manual_items], now
             )
+        if current_time == max(self._digest_times):
+            await self._send_daily_hr_digest(local.date().isoformat(), now)
         await self._database.set_setting("last_digest_slot", slot)
         return True
+
+    async def _send_daily_hr_digest(self, local_date: str, now: datetime) -> None:
+        if await self._database.get_setting("last_hr_digest_date") == local_date:
+            return
+        contacts = await self._database.list_hr_pending(limit=None)
+        if contacts:
+            items = [
+                HRContactCard(
+                    id=contact.id,
+                    contact=contact.contact,
+                    company=contact.company,
+                    role=contact.role,
+                    relevance_reason=contact.relevance_reason,
+                    source_post_url=contact.source_post_url,
+                    outreach_text=HR_OUTREACH_TEXT,
+                )
+                for contact in contacts
+            ]
+            await self._notifier.send_hr_digest(items)
+            await self._database.mark_hr_notified(
+                [contact.id for contact in contacts], now
+            )
+        await self._database.set_setting("last_hr_digest_date", local_date)
 
     async def run_retention(self, now: datetime) -> int:
         return await self._database.purge_raw_text(now - timedelta(days=30))

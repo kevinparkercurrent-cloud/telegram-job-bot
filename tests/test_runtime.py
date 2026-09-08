@@ -1,18 +1,22 @@
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
 from job_bot.control_bot import ChannelMenu, ControlResponse, RemovalConfirmation
 from job_bot.db import StoredChannel
 from job_bot.pipeline import VacancyCard
+from job_bot.hr_discovery import HRContactCard, HR_OUTREACH_TEXT
 from job_bot.scheduler import ManualItem
 from job_bot.runtime import (
     AiogramControlRuntime,
     channel_confirmation_keyboard,
     channel_menu_keyboard,
     format_card,
+    format_hr_card,
     format_manual_digest,
+    hr_contact_keyboard,
     vacancy_keyboard,
 )
 
@@ -174,6 +178,88 @@ def test_manual_digest_is_a_compact_list_of_source_links() -> None:
     assert "Project Manager" in text
     assert "https://t.me/jobs_feed/15" in text
     assert "Запуск продукта" in text
+
+
+def hr_card() -> HRContactCard:
+    return HRContactCard(
+        id="betting_hr",
+        contact="@betting_hr",
+        company="Betting Labs",
+        role="Media Buyer",
+        relevance_reason="Контакт нанимает в iGaming-команду.",
+        source_post_url="https://t.me/igaming_jobs/401",
+        outreach_text=HR_OUTREACH_TEXT,
+    )
+
+
+def test_hr_card_contains_ready_outreach_text_and_context() -> None:
+    text = format_hr_card(hr_card())
+
+    assert "@betting_hr" in text
+    assert "Betting Labs" in text
+    assert "Media Buyer" in text
+    assert "до 10 проектов" in text
+    assert "команду из 7 человек" in text
+    assert "Английский: B1" in text
+
+
+def test_hr_keyboard_opens_contact_and_post_and_has_manual_decisions() -> None:
+    keyboard = hr_contact_keyboard(hr_card())
+    buttons = [button for row in keyboard.inline_keyboard for button in row]
+
+    assert any(
+        button.text == "Открыть HR"
+        and button.url == "https://t.me/betting_hr"
+        for button in buttons
+    )
+    assert any(
+        button.text == "Открыть пост"
+        and button.url == "https://t.me/igaming_jobs/401"
+        for button in buttons
+    )
+    assert any(
+        button.callback_data == "hr:written:betting_hr" for button in buttons
+    )
+    assert any(
+        button.callback_data == "hr:not_relevant:betting_hr"
+        for button in buttons
+    )
+    assert any(
+        button.callback_data == "hr:resume:betting_hr" for button in buttons
+    )
+
+
+@pytest.mark.asyncio
+async def test_hr_resume_is_sent_only_to_admin_chat(tmp_path) -> None:
+    resume = tmp_path / "igaming-resume.pdf"
+    resume.write_bytes(b"%PDF-1.4\n%%EOF")
+    service = RecordingService()
+    runtime = RecordingRuntime(service, MutableClock())
+    runtime._hr_resume_pdf_path = resume
+    runtime._bot.send_document = AsyncMock()
+
+    sent = await runtime.send_hr_resume()
+
+    assert sent is True
+    runtime._bot.send_document.assert_awaited_once()
+    assert runtime._bot.send_document.await_args.args[0] == ADMIN_ID
+
+
+@pytest.mark.asyncio
+async def test_hr_digest_stays_silent_when_empty_and_sends_cards_when_present() -> None:
+    runtime = RecordingRuntime(RecordingService(), MutableClock())
+    runtime._bot.send_message = AsyncMock()
+
+    await runtime.send_hr_digest([])
+    runtime._bot.send_message.assert_not_awaited()
+
+    await runtime.send_hr_digest([hr_card()])
+
+    assert runtime._bot.send_message.await_count == 2
+    first, second = runtime._bot.send_message.await_args_list
+    assert "1" in first.args[1]
+    assert "@betting_hr" in second.args[1]
+    assert second.kwargs["reply_markup"] is not None
 
 
 def test_channel_menu_keyboard_contains_add_remove_and_navigation() -> None:

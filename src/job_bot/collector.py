@@ -30,14 +30,23 @@ class VacancyPipelineProtocol(Protocol):
 
 
 class Collector:
-    def __init__(self, database: Database, pipeline: VacancyPipelineProtocol) -> None:
+    def __init__(
+        self,
+        database: Database,
+        pipeline: VacancyPipelineProtocol,
+        *,
+        post_observers: tuple[VacancyPipelineProtocol, ...] = (),
+    ) -> None:
         self._database = database
         self._pipeline = pipeline
+        self._post_observers = post_observers
 
     async def handle(self, post: ChannelPost) -> CollectionResult:
         if not await self._database.is_allowed_channel(post.channel_id):
             return CollectionResult.IGNORED
         if is_candidate_resume(post.text):
             return CollectionResult.IGNORED
+        for observer in self._post_observers:
+            await observer.process_post(post)
         accepted = await self._pipeline.process_post(post)
         return CollectionResult.PROCESSED if accepted else CollectionResult.DUPLICATE

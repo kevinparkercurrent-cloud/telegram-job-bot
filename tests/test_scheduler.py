@@ -4,6 +4,8 @@ import pytest
 
 from job_bot.db import Database
 from job_bot.domain import Assessment, Draft, MatchClass
+from job_bot.hr_discovery import HRDiscoveryService, HRLeadCandidate
+from job_bot.collector import ChannelPost
 from job_bot.scheduler import Scheduler
 
 
@@ -11,12 +13,16 @@ class RecordingDigestNotifier:
     def __init__(self) -> None:
         self.digests = []
         self.manual_digests = []
+        self.hr_digests = []
 
     async def send_digest(self, items) -> None:
         self.digests.append(items)
 
     async def send_manual_digest(self, items) -> None:
         self.manual_digests.append(items)
+
+    async def send_hr_digest(self, items) -> None:
+        self.hr_digests.append(items)
 
 
 async def prepare_borderline(db: Database, vacancy) -> None:
@@ -139,5 +145,74 @@ async def test_manual_vacancies_are_sent_as_separate_link_digest(
         assert notifier.manual_digests[0][0].source_post_url == (
             "https://t.me/jobs_feed/15"
         )
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_hr_contacts_are_sent_once_in_daily_digest_at_last_slot(
+    tmp_path,
+) -> None:
+    db = await Database.open(tmp_path / "scheduler-hr.sqlite3")
+    notifier = RecordingDigestNotifier()
+    scheduler = Scheduler(db, notifier, "Europe/Moscow", ("12:00", "19:00"))
+    post = ChannelPost(
+        channel_id=-100123,
+        message_id=301,
+        published_at=datetime(2026, 8, 14, tzinfo=timezone.utc),
+        text=(
+            "Компания: Betting Labs\nВакансия: Media Buyer в iGaming.\n"
+            "Для отклика пишите @betting_recruiter"
+        ),
+        source_post_url="https://t.me/igaming_jobs/301",
+    )
+    try:
+        assert await HRDiscoveryService(db).process_post(post)
+
+        await scheduler.tick(datetime(2026, 8, 14, 9, 0, tzinfo=timezone.utc))
+        assert notifier.hr_digests == []
+
+        evening = datetime(2026, 8, 14, 16, 0, tzinfo=timezone.utc)
+        await scheduler.tick(evening)
+        await scheduler.tick(evening)
+
+        assert len(notifier.hr_digests) == 1
+        assert notifier.hr_digests[0][0].contact == "@betting_recruiter"
+        assert notifier.hr_digests[0][0].source_post_url == (
+            "https://t.me/igaming_jobs/301"
+        )
+        assert await db.list_hr_pending() == []
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_daily_hr_digest_drains_more_than_twenty_contacts(tmp_path) -> None:
+    db = await Database.open(tmp_path / "scheduler-many-hr.sqlite3")
+    notifier = RecordingDigestNotifier()
+    scheduler = Scheduler(db, notifier, "Europe/Moscow", ("12:00", "19:00"))
+    try:
+        for index in range(21):
+            username = f"recruiter_{index:02}"
+            inserted = await db.insert_hr_contact(
+                HRLeadCandidate(
+                    contact=f"@{username}",
+                    normalized_contact=username,
+                    company=None,
+                    role="Media Buyer",
+                    relevance_reason="iGaming-команда",
+                    source_post_url=f"https://t.me/igaming_jobs/{500 + index}",
+                ),
+                source_vacancy_id=f"-100123:{500 + index}",
+            )
+            assert inserted
+
+        await scheduler.tick(
+            datetime(2026, 8, 14, 16, 0, tzinfo=timezone.utc)
+        )
+
+        assert len(notifier.hr_digests) == 1
+        assert len(notifier.hr_digests[0]) == 21
+        assert await db.list_hr_pending(limit=None) == []
     finally:
         await db.close()

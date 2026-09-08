@@ -12,6 +12,7 @@ from typing import AsyncIterator
 import aiosqlite
 
 from job_bot.domain import Assessment, Draft, MatchClass, Vacancy, VacancyStatus
+from job_bot.hr_discovery import HRLeadCandidate
 
 
 SCHEMA = """
@@ -97,6 +98,21 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS hr_contacts (
+    id TEXT PRIMARY KEY,
+    contact TEXT NOT NULL,
+    normalized_contact TEXT NOT NULL UNIQUE,
+    company TEXT,
+    role TEXT NOT NULL,
+    relevance_reason TEXT NOT NULL,
+    source_vacancy_id TEXT NOT NULL,
+    source_post_url TEXT NOT NULL,
+    status TEXT NOT NULL,
+    notified_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -115,6 +131,20 @@ class StoredChannel:
     channel_id: int
     label: str
     username: str | None = None
+
+
+@dataclass(frozen=True)
+class StoredHRContact:
+    id: str
+    contact: str
+    normalized_contact: str
+    company: str | None
+    role: str
+    relevance_reason: str
+    source_vacancy_id: str
+    source_post_url: str
+    status: str
+    notified_at: str | None = None
 
 
 CHANNEL_LIMIT = 100
@@ -470,6 +500,138 @@ class Database:
         row = await cursor.fetchone()
         return str(row["value"]) if row else None
 
+    async def insert_hr_contact(
+        self, lead: HRLeadCandidate, source_vacancy_id: str
+    ) -> bool:
+        previous = await self._connection.execute(
+            """
+            SELECT 1
+            FROM vacancies v
+            LEFT JOIN send_attempts s ON s.vacancy_id = v.id
+            WHERE lower(ltrim(
+                json_extract(v.payload_json, '$.recruiter_username'), '@'
+            )) = ?
+              AND (v.status = ? OR s.status = ?)
+            LIMIT 1
+            """,
+            (
+                lead.normalized_contact,
+                VacancyStatus.SENT.value,
+                VacancyStatus.SENT.value,
+            ),
+        )
+        if await previous.fetchone() is not None:
+            return False
+        now = _utc_now()
+        cursor = await self._connection.execute(
+            """
+            INSERT OR IGNORE INTO hr_contacts(
+                id, contact, normalized_contact, company, role,
+                relevance_reason, source_vacancy_id, source_post_url,
+                status, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?)
+            """,
+            (
+                lead.normalized_contact,
+                lead.contact,
+                lead.normalized_contact,
+                lead.company,
+                lead.role,
+                lead.relevance_reason,
+                source_vacancy_id,
+                lead.source_post_url,
+                now,
+                now,
+            ),
+        )
+        await self._connection.commit()
+        return cursor.rowcount == 1
+
+    async def list_hr_contacts(
+        self, statuses: tuple[str, ...], limit: int = 20
+    ) -> list[StoredHRContact]:
+        placeholders = ",".join("?" for _ in statuses)
+        cursor = await self._connection.execute(
+            f"""
+            SELECT id, contact, normalized_contact, company, role,
+                   relevance_reason, source_vacancy_id, source_post_url,
+                   status, notified_at
+            FROM hr_contacts
+            WHERE status IN ({placeholders})
+            ORDER BY created_at DESC LIMIT ?
+            """,
+            (*statuses, limit),
+        )
+        return [
+            self._stored_hr_contact(row) for row in await cursor.fetchall()
+        ]
+
+    async def list_hr_pending(
+        self, limit: int | None = 20
+    ) -> list[StoredHRContact]:
+        limit_clause = " LIMIT ?" if limit is not None else ""
+        parameters: tuple[int, ...] = (limit,) if limit is not None else ()
+        cursor = await self._connection.execute(
+            f"""
+            SELECT id, contact, normalized_contact, company, role,
+                   relevance_reason, source_vacancy_id, source_post_url,
+                   status, notified_at
+            FROM hr_contacts
+            WHERE status = 'new' AND notified_at IS NULL
+            ORDER BY created_at ASC{limit_clause}
+            """,
+            parameters,
+        )
+        rows = await cursor.fetchall()
+        return [self._stored_hr_contact(row) for row in rows]
+
+    async def mark_hr_notified(
+        self, contact_ids: list[str], when: datetime
+    ) -> None:
+        if not contact_ids:
+            return
+        async with self.transaction() as connection:
+            await connection.executemany(
+                """
+                UPDATE hr_contacts SET notified_at = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                [
+                    (when.isoformat(), when.isoformat(), contact_id)
+                    for contact_id in contact_ids
+                ],
+            )
+
+    async def record_hr_decision(self, contact_id: str, decision: str) -> bool:
+        if decision not in {"written", "not_relevant"}:
+            raise ValueError("Unsupported HR contact decision")
+        cursor = await self._connection.execute(
+            """
+            UPDATE hr_contacts SET status = ?, updated_at = ?
+            WHERE id = ? AND status = 'new'
+            """,
+            (decision, _utc_now(), contact_id),
+        )
+        await self._connection.commit()
+        return cursor.rowcount == 1
+
+    @staticmethod
+    def _stored_hr_contact(row: aiosqlite.Row) -> StoredHRContact:
+        return StoredHRContact(
+            id=str(row["id"]),
+            contact=str(row["contact"]),
+            normalized_contact=str(row["normalized_contact"]),
+            company=str(row["company"]) if row["company"] else None,
+            role=str(row["role"]),
+            relevance_reason=str(row["relevance_reason"]),
+            source_vacancy_id=str(row["source_vacancy_id"]),
+            source_post_url=str(row["source_post_url"]),
+            status=str(row["status"]),
+            notified_at=(
+                str(row["notified_at"]) if row["notified_at"] else None
+            ),
+        )
+
     async def purge_raw_text(self, before: datetime) -> int:
         cursor = await self._connection.execute(
             """
@@ -548,6 +710,18 @@ class Database:
             await connection.execute(
                 "UPDATE vacancies SET status = ? WHERE id = ?",
                 (VacancyStatus.SENT.value, vacancy_id),
+            )
+            await connection.execute(
+                """
+                UPDATE hr_contacts SET status = 'written', updated_at = ?
+                WHERE status <> 'written' AND normalized_contact = (
+                    SELECT lower(ltrim(
+                        json_extract(payload_json, '$.recruiter_username'), '@'
+                    ))
+                    FROM vacancies WHERE id = ?
+                )
+                """,
+                (now, vacancy_id),
             )
 
     async def save_exchange_rates(

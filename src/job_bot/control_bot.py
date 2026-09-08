@@ -11,6 +11,7 @@ from job_bot.channel_management import (
 )
 from job_bot.db import CHANNEL_LIMIT, Database, StoredChannel
 from job_bot.domain import MAX_DRAFT_LENGTH, Draft
+from job_bot.hr_discovery import HRContactCard, HR_OUTREACH_TEXT
 from job_bot.pipeline import VacancyCard
 from job_bot.sender import SafeSender
 
@@ -47,6 +48,8 @@ class ControlResponse:
     channel_menu: ChannelMenu | None = None
     begin_channel_add: bool = False
     remove_confirmation: RemovalConfirmation | None = None
+    hr_cards: tuple[HRContactCard, ...] = ()
+    send_hr_resume: bool = False
 
 
 class ControlActions(Protocol):
@@ -175,6 +178,17 @@ class ControlBotService:
         if text == "/manual":
             rows = await self._database.list_by_statuses(("manual",))
             return ControlResponse(text=self._format_manual_vacancies(rows))
+        if text == "/hr":
+            cards = await self._hr_cards(("new",))
+            return ControlResponse(
+                text=f"Новые HR-контакты: {len(cards)}",
+                hr_cards=cards,
+            )
+        if text == "/hr_history":
+            rows = await self._database.list_hr_contacts(
+                ("written", "not_relevant")
+            )
+            return ControlResponse(text=self._format_hr_history(rows))
         if text == "/history":
             rows = await self._database.list_by_statuses(
                 ("sent", "skipped", "not_relevant", "failed", "assessed")
@@ -192,13 +206,15 @@ class ControlBotService:
         return ControlResponse(
             text=(
                 "Команды: /channels, /settings, /queue, /manual, "
-                "/history, /status, /edit"
+                "/hr, /hr_history, /history, /status, /edit"
             )
         )
 
     async def _callback(self, data: str) -> ControlResponse:
         if data.startswith("channels:"):
             return await self._channel_callback(data)
+        if data.startswith("hr:"):
+            return await self._hr_callback(data)
         if self._actions is None:
             return ControlResponse(text="Действие пока недоступно")
         action, separator, vacancy_id = data.partition(":")
@@ -223,6 +239,41 @@ class ControlBotService:
         else:
             return ControlResponse(text="Неизвестное действие")
         return ControlResponse(text=result, mutated=True)
+
+    async def _hr_callback(self, data: str) -> ControlResponse:
+        parts = data.split(":", 2)
+        if len(parts) == 3 and parts[1] == "resume":
+            return ControlResponse(
+                text="Отправляю iGaming-резюме в PDF",
+                send_hr_resume=True,
+            )
+        if len(parts) != 3 or parts[1] not in {"written", "not_relevant"}:
+            return ControlResponse(text="Некорректное действие с HR-контактом")
+        updated = await self._database.record_hr_decision(parts[2], parts[1])
+        if not updated:
+            return ControlResponse(text="HR-контакт уже обработан")
+        label = "написал" if parts[1] == "written" else "не подходит"
+        return ControlResponse(
+            text=f"Контакт отмечен: {label}",
+            mutated=True,
+        )
+
+    async def _hr_cards(
+        self, statuses: tuple[str, ...]
+    ) -> tuple[HRContactCard, ...]:
+        rows = await self._database.list_hr_contacts(statuses)
+        return tuple(
+            HRContactCard(
+                id=row.id,
+                contact=row.contact,
+                company=row.company,
+                role=row.role,
+                relevance_reason=row.relevance_reason,
+                source_post_url=row.source_post_url,
+                outreach_text=HR_OUTREACH_TEXT,
+            )
+            for row in rows
+        )
 
     async def _edit(self, text: str) -> ControlResponse:
         if self._actions is None:
@@ -424,3 +475,17 @@ class ControlBotService:
             )
             lines.append(f"{index}. {title}\n{link}")
         return "\n\n".join(lines)
+
+    @staticmethod
+    def _format_hr_history(rows) -> str:
+        if not rows:
+            return "История HR: пусто"
+        labels = {"written": "написал", "not_relevant": "не подходит"}
+        lines = ["История HR:"]
+        for row in rows:
+            company = f" — {row.company}" if row.company else ""
+            lines.append(
+                f"{row.contact}{company} — {row.role} "
+                f"[{labels.get(row.status, row.status)}]"
+            )
+        return "\n".join(lines)

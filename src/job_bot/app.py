@@ -15,6 +15,7 @@ from job_bot.control_bot import ControlBotService, RuntimeControlActions
 from job_bot.db import Database
 from job_bot.drafting import OpenAIDrafter, OpenAIResponsesClient, TemplateDrafter
 from job_bot.exchange_rates import CbrExchangeRates
+from job_bot.hr_discovery import HRDiscoveryService
 from job_bot.observability import configure_logging
 from job_bot.pipeline import VacancyPipeline
 from job_bot.runtime import (
@@ -110,7 +111,10 @@ async def build_application(settings: Settings) -> JobBotApplication:
         channel_manager=channel_manager,
     )
     control_bot = AiogramControlRuntime(
-        settings.control_bot_token, settings.admin_telegram_id, control_service
+        settings.control_bot_token,
+        settings.admin_telegram_id,
+        control_service,
+        hr_resume_pdf_path=settings.hr_resume_pdf_path,
     )
 
     rates_client = httpx.AsyncClient()
@@ -144,7 +148,14 @@ async def build_application(settings: Settings) -> JobBotApplication:
         ai_drafter,
         control_bot,
     )
-    collector = CollectorIngress(telegram, Collector(database, pipeline))
+    collector = CollectorIngress(
+        telegram,
+        Collector(
+            database,
+            pipeline,
+            post_observers=(HRDiscoveryService(database),),
+        ),
+    )
     scheduler = PeriodicScheduler(
         Scheduler(database, control_bot, settings.app_timezone, settings.digest_times),
         rates.refresh,

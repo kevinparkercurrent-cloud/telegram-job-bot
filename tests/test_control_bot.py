@@ -6,6 +6,8 @@ from job_bot.channel_management import ChannelManagementService, ResolvedChannel
 from job_bot.control_bot import ControlBotService, ControlRequest, RuntimeControlActions
 from job_bot.db import Database
 from job_bot.domain import Assessment, Draft, MatchClass
+from job_bot.hr_discovery import HRDiscoveryService, HR_OUTREACH_TEXT
+from job_bot.collector import ChannelPost
 
 ADMIN_ID = 42
 NOW = datetime(2026, 8, 16, 12, 0, tzinfo=timezone.utc)
@@ -443,5 +445,86 @@ async def test_manual_command_lists_vacancies_with_source_links(
 
         assert "Ручной отклик" in response.text
         assert "https://t.me/jobs_feed/15" in response.text
+    finally:
+        await db.close()
+
+
+def hr_post() -> ChannelPost:
+    return ChannelPost(
+        channel_id=-100123,
+        message_id=401,
+        published_at=NOW,
+        text=(
+            "Компания: Betting Labs\nВакансия: ASO Specialist в iGaming.\n"
+            "Пишите рекрутеру @betting_hr"
+        ),
+        source_post_url="https://t.me/igaming_jobs/401",
+    )
+
+
+@pytest.mark.asyncio
+async def test_hr_command_returns_manual_contact_card(tmp_path) -> None:
+    db = await Database.open(tmp_path / "hr-command.sqlite3")
+    try:
+        assert await HRDiscoveryService(db).process_post(hr_post())
+        service = ControlBotService(db, ADMIN_ID, RecordingActions())
+
+        response = await service.dispatch(
+            ControlRequest(user_id=ADMIN_ID, text="/hr")
+        )
+
+        assert len(response.hr_cards) == 1
+        card = response.hr_cards[0]
+        assert card.contact == "@betting_hr"
+        assert card.company == "Betting Labs"
+        assert card.outreach_text == HR_OUTREACH_TEXT
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_hr_written_callback_moves_contact_to_history_without_sender(
+    tmp_path,
+) -> None:
+    db = await Database.open(tmp_path / "hr-written.sqlite3")
+    actions = RecordingActions()
+    try:
+        assert await HRDiscoveryService(db).process_post(hr_post())
+        service = ControlBotService(db, ADMIN_ID, actions)
+
+        response = await service.dispatch(
+            ControlRequest(
+                user_id=ADMIN_ID,
+                callback_data="hr:written:betting_hr",
+            )
+        )
+
+        assert response.text == "Контакт отмечен: написал"
+        assert actions.calls == []
+        assert await db.list_hr_contacts(("new",)) == []
+        history = await service.dispatch(
+            ControlRequest(user_id=ADMIN_ID, text="/hr_history")
+        )
+        assert "@betting_hr" in history.text
+        assert "написал" in history.text
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_hr_resume_callback_only_requests_pdf_for_admin(tmp_path) -> None:
+    db = await Database.open(tmp_path / "hr-resume.sqlite3")
+    try:
+        service = ControlBotService(db, ADMIN_ID, RecordingActions())
+
+        response = await service.dispatch(
+            ControlRequest(
+                user_id=ADMIN_ID,
+                callback_data="hr:resume:betting_hr",
+            )
+        )
+
+        assert response.send_hr_resume is True
+        assert "PDF" in response.text
     finally:
         await db.close()

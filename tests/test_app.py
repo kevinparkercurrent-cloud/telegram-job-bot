@@ -2,6 +2,7 @@ import pytest
 
 from job_bot.app import JobBotApplication, build_application
 from job_bot.config import Settings
+from job_bot.hr_discovery import HRDiscoveryService
 
 
 class RecordingRuntime:
@@ -82,5 +83,8 @@ async def test_application_factory_wires_without_network(
         channel_manager = application._control_bot._service._channel_manager
         assert channel_manager is not None
         assert channel_manager._membership is telegram
+        observers = application._collector._collector._post_observers
+        assert len(observers) == 1
+        assert isinstance(observers[0], HRDiscoveryService)
     finally:
         await application.stop()

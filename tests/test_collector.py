@@ -114,3 +114,39 @@ async def test_vacancy_that_requests_resume_is_not_filtered(tmp_path) -> None:
         assert pipeline.received == [vacancy_post]
     finally:
         await db.close()
+
+
+@pytest.mark.asyncio
+async def test_forwards_allowed_vacancy_to_shared_post_observer(tmp_path) -> None:
+    db = await Database.open(tmp_path / "collector-observer.sqlite3")
+    pipeline = RecordingPipeline()
+    observer = RecordingPipeline()
+    try:
+        await db.add_channel(-1009, "jobs")
+
+        await Collector(db, pipeline, post_observers=(observer,)).handle(post())
+
+        assert observer.received == [post()]
+        assert pipeline.received == [post()]
+    finally:
+        await db.close()
+
+
+@pytest.mark.asyncio
+async def test_candidate_resume_never_reaches_shared_post_observer(tmp_path) -> None:
+    db = await Database.open(tmp_path / "collector-observer-resume.sqlite3")
+    pipeline = RecordingPipeline()
+    observer = RecordingPipeline()
+    candidate = replace(
+        post(),
+        text="#резюме #opentowork Ищу работу в iGaming. Контакт @candidate_pm",
+    )
+    try:
+        await db.add_channel(-1009, "jobs")
+
+        await Collector(db, pipeline, post_observers=(observer,)).handle(candidate)
+
+        assert observer.received == []
+        assert pipeline.received == []
+    finally:
+        await db.close()
